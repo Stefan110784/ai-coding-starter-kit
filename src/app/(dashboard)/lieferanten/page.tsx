@@ -267,7 +267,7 @@ export default function LieferantenPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [showEOQ, setShowEOQ] = useState(false);
   const [form, setForm] = useState({ name: "", kontakt: "", email: "", telefon: "", lieferzeitTage: "7" });
-  const [eoqForm, setEoqForm] = useState({ jahresbedarf: "", bestellkosten: "", lagerkostensatz: "", lieferzeitTage: "7" });
+  const [eoqForm, setEoqForm] = useState({ jahresbedarf: "", bestellkosten: "", lagerkostensatz: "", lieferzeitTage: "7", einkaufspreis: "", lagerzinssatz: "" });
   const [eoqResult, setEoqResult] = useState<{
     eoq: number;
     bestellpunkt: number;
@@ -308,6 +308,20 @@ export default function LieferantenPage() {
     const body = await res.json();
     if (!res.ok) { toast.error(body.error ?? "Fehler"); return; }
     setEoqResult(body);
+  }
+
+  // Andler-Herleitung: H = Einkaufspreis × Lagerzinssatz%. Befüllt das H-Feld
+  // automatisch, sobald Preis und Zinssatz gesetzt sind (H bleibt editierbar).
+  function setAndlerFeld(feld: "einkaufspreis" | "lagerzinssatz", wert: string) {
+    setEoqForm((f) => {
+      const next = { ...f, [feld]: wert };
+      const p = parseFloat(next.einkaufspreis);
+      const z = parseFloat(next.lagerzinssatz);
+      if (p > 0 && z > 0) {
+        next.lagerkostensatz = (Math.round(p * (z / 100) * 100) / 100).toString();
+      }
+      return next;
+    });
   }
 
   const lieferanten = Array.isArray(data) ? data : [];
@@ -451,6 +465,19 @@ export default function LieferantenPage() {
             <div className="space-y-1.5">
               <Label>S – Bestellkosten (€/Bestellung) *</Label>
               <Input required type="number" min="0.01" step="any" value={eoqForm.bestellkosten} onChange={(e) => setEoqForm({ ...eoqForm, bestellkosten: e.target.value })} />
+            </div>
+            <div className="rounded-md border p-3 space-y-2">
+              <p className="text-xs text-muted-foreground">Optional: H nach Andler aus Preis × Zinssatz berechnen</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Einkaufspreis (€/Stk)</Label>
+                  <Input type="number" min="0" step="any" value={eoqForm.einkaufspreis} onChange={(e) => setAndlerFeld("einkaufspreis", e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Lagerzinssatz (%/Jahr)</Label>
+                  <Input type="number" min="0" step="any" value={eoqForm.lagerzinssatz} onChange={(e) => setAndlerFeld("lagerzinssatz", e.target.value)} />
+                </div>
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label>H – Lagerkosten (€/Stk/Jahr) *</Label>
