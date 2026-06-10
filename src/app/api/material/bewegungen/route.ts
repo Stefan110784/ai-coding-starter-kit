@@ -13,6 +13,10 @@ const createSchema = z.object({
   art: z.enum(["wareneingang", "korrektur", "umlagerung", "inventur"]),
   menge: z.number().refine((m) => m !== 0, "Menge darf nicht 0 sein"),
   bemerkung: z.string().optional(),
+  // Materialbewertung (KLR I): optionaler Einstandspreis + Kontierung.
+  einstandspreis: z.number().nonnegative().optional(),
+  kostenstelle: z.string().optional(),
+  kostentraeger: z.string().optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -53,7 +57,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) return err("Ungültige Eingabe");
-  const { artikelnummer, lagerortId, lagerortZielId, art, menge, bemerkung } = parsed.data;
+  const { artikelnummer, lagerortId, lagerortZielId, art, menge, bemerkung, einstandspreis, kostenstelle, kostentraeger } = parsed.data;
 
   const artikel = await prisma.artikel.findUnique({ where: { artikelnummer } });
   if (!artikel) return err("Artikel nicht gefunden", 404);
@@ -90,6 +94,7 @@ export async function POST(req: NextRequest) {
           artikelnummer, lagerortId, art,
           menge: art === "wareneingang" ? Math.abs(menge) : menge,
           benutzerId: auth.benutzer.id, bemerkung,
+          einstandspreis, kostenstelle, kostentraeger,
         },
       });
     }

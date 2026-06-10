@@ -81,3 +81,62 @@ export async function lagerKennzahlenAusDb(
 
   return { ...kern, artikelMitBestand };
 }
+
+export interface Materialwert {
+  /** Σ Bestand × Ø-Einstandspreis (nur Artikel mit gepflegtem Preis). */
+  lagerwert: number;
+  /** Σ Verbrauch im Zeitraum × Ø-Einstandspreis (wertmäßige Skontration). */
+  bewerteterVerbrauch: number;
+  /** Anzahl Artikel mit Ø-Einstandspreis (Abdeckungs-Indikator). */
+  artikelMitPreis: number;
+}
+
+/**
+ * Wertmäßige Materialbewertung (KLR I): bewertet Bestand und Verbrauch mit dem
+ * gleitenden Durchschnitts-Einstandspreis je Artikel aus den Wareneingängen.
+ * Nur Artikel mit gepflegtem Einstandspreis fließen ein.
+ */
+export async function materialwertAusDb(db: Db, von: Date, bis: Date): Promise<Materialwert> {
+  const [preisRows, verbrauchRows, bestand] = await Promise.all([
+    db.materialbewegung.groupBy({
+      by: ["artikelnummer"],
+      where: { art: "wareneingang", einstandspreis: { not: null } },
+      _avg: { einstandspreis: true },
+    }),
+    db.materialbewegung.groupBy({
+      by: ["artikelnummer"],
+      where: { gebuchtAm: { gte: von, lte: bis }, art: { in: ["entnahme", "fertigmeldung"] } },
+      _sum: { menge: true },
+    }),
+    bestandJeArtikel(db),
+  ]);
+
+  const preisMap = new Map<string, number>();
+  for (const r of preisRows) {
+    if (r._avg.einstandspreis != null) preisMap.set(r.artikelnummer, Number(r._avg.einstandspreis));
+  }
+  const verbrauchMap = new Map<string, number>();
+  for (const r of verbrauchRows) verbrauchMap.set(r.artikelnummer, Math.abs(r._sum.menge ?? 0));
+
+  let lagerwert = 0;
+  let bewerteterVerbrauch = 0;
+  for (const [artikelnummer, bestandMenge] of bestand) {
+    const preis = preisMap.get(artikelnummer);
+    if (preis == null) continue;
+    lagerwert += bestandMenge * preis;
+    bewerteterVerbrauch += (verbrauchMap.get(artikelnummer) ?? 0) * preis;
+  }
+  // Verbrauchsartikel ohne aktuellen Bestand zusätzlich berücksichtigen.
+  for (const [artikelnummer, menge] of verbrauchMap) {
+    if (!bestand.has(artikelnummer)) {
+      const preis = preisMap.get(artikelnummer);
+      if (preis != null) bewerteterVerbrauch += menge * preis;
+    }
+  }
+
+  return {
+    lagerwert: Math.round(lagerwert * 100) / 100,
+    bewerteterVerbrauch: Math.round(bewerteterVerbrauch * 100) / 100,
+    artikelMitPreis: preisMap.size,
+  };
+}

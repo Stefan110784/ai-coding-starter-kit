@@ -203,9 +203,22 @@ export default function AuswertungPage() {
               <p className="text-2xl font-bold">{lager?.jahresverbrauch ?? "–"}</p>
               <p className="text-sm text-muted-foreground">Jahresverbrauch</p>
             </div>
+            <div>
+              <p className="text-2xl font-bold">
+                {lager?.lagerwert != null ? `${lager.lagerwert.toLocaleString("de-DE")} €` : "–"}
+              </p>
+              <p className="text-sm text-muted-foreground">Lagerwert (bewertet)</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold">
+                {lager?.bewerteterVerbrauch != null ? `${lager.bewerteterVerbrauch.toLocaleString("de-DE")} €` : "–"}
+              </p>
+              <p className="text-sm text-muted-foreground">Materialkosten (Verbrauch)</p>
+            </div>
           </div>
           <p className="text-xs text-muted-foreground mt-3">
-            Mengenbasiert (Summe über alle Artikel). Wertbasierte Kennzahlen folgen mit der Materialbewertung.
+            Mengen-Kennzahlen über alle Artikel summiert. Wertangaben nutzen den Ø-Einstandspreis aus Wareneingängen
+            {lager?.artikelMitPreis != null ? ` (${lager.artikelMitPreis} Artikel mit Preis)` : ""}.
           </p>
         </CardContent>
       </Card>

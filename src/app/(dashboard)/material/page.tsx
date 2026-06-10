@@ -109,6 +109,7 @@ export default function MaterialPage() {
     art: "wareneingang",
     menge: "",
     bemerkung: "",
+    einstandspreis: "",
   });
 
   const { data: bewegungen, isLoading: bewegungenLoading } = useSWR(
@@ -140,6 +141,9 @@ export default function MaterialPage() {
         art: form.art,
         menge: parseFloat(form.menge),
         ...(form.bemerkung ? { bemerkung: form.bemerkung } : {}),
+        ...(form.art === "wareneingang" && form.einstandspreis
+          ? { einstandspreis: parseFloat(form.einstandspreis) }
+          : {}),
       }),
     });
     const body = await res.json();
@@ -760,6 +764,13 @@ export default function MaterialPage() {
                       ))}
                   </SelectContent>
                 </Select>
+              </div>
+            )}
+            {form.art === "wareneingang" && (
+              <div className="space-y-1.5">
+                <Label>Einstandspreis (€/Stk)</Label>
+                <Input type="number" min="0" step="any" value={form.einstandspreis} onChange={(e) => setForm({ ...form, einstandspreis: e.target.value })} />
+                <p className="text-xs text-muted-foreground">Optional — für die wertmäßige Materialbewertung.</p>
               </div>
             )}
             <div className="space-y-1.5">

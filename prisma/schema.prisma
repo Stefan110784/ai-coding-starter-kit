@@ -1,0 +1,454 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Benutzerrolle {
+  admin
+  kommissionierung
+  mitarbeiter
+}
+
+enum Auftragsstatus {
+  offen
+  kommissioniert
+  laeuft
+  pausiert
+  abgeschlossen
+}
+
+enum Materialbewegungsart {
+  wareneingang
+  entnahme
+  umlagerung
+  inventur
+  korrektur
+  fertigmeldung
+}
+
+enum Inventurstatus {
+  erfasst
+  gebucht
+  verworfen
+}
+
+enum Zeitbeendigungsgrund {
+  normal
+  pause
+  nachtrag
+}
+
+// ─── Auth & Benutzer ──────────────────────────────────────────────────────────
+
+model Benutzer {
+  id                  String        @id @default(uuid())
+  username            String        @unique
+  name                String?
+  rolle               Benutzerrolle
+  passwortHash        String        @map("passwort_hash")
+  aktiv               Boolean       @default(true)
+  mussPasswortAendern Boolean       @default(false) @map("muss_passwort_aendern")
+  rechte              Json?
+  erstelltAm          DateTime      @default(now()) @map("erstellt_am")
+
+  sessions             Session[]
+  mitarbeiter          Mitarbeiter?
+  materialbewegungen   Materialbewegung[]
+  inventurErfasst      InventurZaehlung[] @relation("ErfasstVon")
+  inventurGebucht      InventurZaehlung[] @relation("GebuchtVon")
+  kommissionierChecks  KommissionierCheck[]
+  vergebeneZuweisungen AuftragMitarbeiter[]
+
+  @@map("benutzer")
+}
+
+model Session {
+  token      String   @id
+  benutzerId String   @map("benutzer_id")
+  laeuftAb   DateTime @map("laeuft_ab")
+  erstelltAm DateTime @default(now()) @map("erstellt_am")
+
+  benutzer Benutzer @relation(fields: [benutzerId], references: [id], onDelete: Cascade)
+
+  @@map("session")
+}
+
+// ─── Mitarbeiter ──────────────────────────────────────────────────────────────
+
+model Mitarbeiter {
+  id         String   @id @default(uuid())
+  name       String
+  kuerzel    String   @unique
+  status     String   @default("aktiv")
+  benutzerId String?  @unique @map("benutzer_id")
+  erstelltAm DateTime @default(now()) @map("erstellt_am")
+
+  benutzer    Benutzer?        @relation(fields: [benutzerId], references: [id], onDelete: SetNull)
+  zeiten      Auftragszeit[]
+  qualitaet   Qualitaet[]
+  zuweisungen AuftragZuweisung[]
+  team        AuftragMitarbeiter[]
+
+  @@map("mitarbeiter")
+}
+
+// ─── Lager & Artikel ──────────────────────────────────────────────────────────
+
+model Lagerort {
+  id         String   @id @default(uuid())
+  name       String   @unique
+  kuerzel    String
+  aktiv      Boolean  @default(true)
+  erstelltAm DateTime @default(now()) @map("erstellt_am")
+
+  artikel            Artikel[]
+  bewegungenQuelle   Materialbewegung[] @relation("LagerortQuelle")
+  bewegungenZiel     Materialbewegung[] @relation("LagerortZiel")
+  inventurZaehlungen InventurZaehlung[]
+
+  @@map("lagerort")
+}
+
+model Artikel {
+  artikelnummer   String   @id
+  bezeichnung     String
+  langtext        String?
+  vorgabezeit     Float?
+  istBasissystem  Boolean  @default(false) @map("ist_basissystem")
+  produktfamilie  String?
+  einheit         String   @default("Stk")
+  mindestbestand  Float?
+  lagerortId      String?  @map("lagerort_id")
+  bestandAktiv    Boolean  @default(true) @map("bestand_aktiv")
+  gesperrt        Boolean  @default(false)
+  ungeprueft      Boolean  @default(false)
+  lagerplatzReihe String?  @map("lagerplatz_reihe")
+  lagerplatzRegal String?  @map("lagerplatz_regal")
+  lagerplatzFach  String?  @map("lagerplatz_fach")
+  lagerplatzPlatz String?  @map("lagerplatz_platz")
+  erfasstAm       DateTime @default(now()) @map("erfasst_am")
+
+  lagerort            Lagerort?             @relation(fields: [lagerortId], references: [id])
+  auftragPositionen   AuftragPosition[]
+  stuecklistenOben    StuecklistePosition[] @relation("ParentArtikel")
+  stuecklistenUnten   StuecklistePosition[] @relation("KindArtikel")
+  materialbewegungen  Materialbewegung[]
+  inventurZaehlungen  InventurZaehlung[]
+  kommissionierChecks KommissionierCheck[]
+  lieferanten         ArtikelLieferant[]
+
+  @@map("artikel")
+}
+
+model StuecklistePosition {
+  id            String @id @default(uuid())
+  parentArtikel String @map("parent_artikel")
+  kindArtikel   String @map("kind_artikel")
+  menge         Float
+  einheit       String @default("Stk")
+  posNr         Int    @map("pos_nr")
+
+  parent Artikel @relation("ParentArtikel", fields: [parentArtikel], references: [artikelnummer], onDelete: Cascade)
+  kind   Artikel @relation("KindArtikel", fields: [kindArtikel], references: [artikelnummer])
+
+  @@unique([parentArtikel, kindArtikel])
+  @@map("stueckliste_position")
+}
+
+// ─── Aufträge ─────────────────────────────────────────────────────────────────
+
+model Auftrag {
+  id                  String         @id @default(uuid())
+  // BEWUSST nicht unique: V2-Produktivdaten enthalten doppelte Nummern
+  // (manuell angelegter + beleg-importierter Auftrag mit gleicher P-Nummer).
+  nummer              String
+  bezeichnung         String
+  menge               Float
+  status              Auftragsstatus @default(offen)
+  kunde               String?
+  liefertermin        String?
+  abNummer            String?        @map("ab_nummer")
+  quelle              String?
+  produktManuell      Boolean        @default(false) @map("produkt_manuell")
+  laenge              Float?
+  breite              Float?
+  hoehe               Float?
+  gewicht             Float?
+  pausengrund         String?
+  notiz               String?
+  planZeitSekunden    Int?           @map("plan_zeit_sekunden")
+  start               DateTime?
+  ende                DateTime?
+  promisedDate        DateTime?      @map("promised_date")
+  promisedDateManuell Boolean        @default(false) @map("promised_date_manuell")
+  reworkRequired      Boolean        @default(false) @map("rework_required")
+  reworkReason        String?        @map("rework_reason")
+  stalledMissingParts Boolean        @default(false) @map("stalled_missing_parts")
+  stallDays           Int?           @map("stall_days")
+  kpiAusgeschlossen   Boolean        @default(false) @map("kpi_ausgeschlossen")
+  erstelltAm          DateTime       @default(now()) @map("erstellt_am")
+
+  positionen          AuftragPosition[]
+  zeiten              Auftragszeit[]
+  dateien             Datei[]
+  qualitaet           Qualitaet[]
+  materialbewegungen  Materialbewegung[]
+  kommissionierChecks KommissionierCheck[]
+  zuweisungen         AuftragZuweisung[]
+  team                AuftragMitarbeiter[]
+  packmasse           AuftragPackmass[]
+
+  @@index([status])
+  @@index([nummer])
+  @@map("auftrag")
+}
+
+/// n:m-Zuweisung „Arbeitsvorrat": welcher Mitarbeiter soll an welchem Auftrag arbeiten (V2 ≥2.39).
+model AuftragMitarbeiter {
+  auftragId       String   @map("auftrag_id")
+  mitarbeiterId   String   @map("mitarbeiter_id")
+  zugewiesenAm    DateTime @default(now()) @map("zugewiesen_am")
+  zugewiesenVonId String?  @map("zugewiesen_von_id")
+
+  auftrag       Auftrag     @relation(fields: [auftragId], references: [id], onDelete: Cascade)
+  mitarbeiter   Mitarbeiter @relation(fields: [mitarbeiterId], references: [id], onDelete: Cascade)
+  zugewiesenVon Benutzer?   @relation(fields: [zugewiesenVonId], references: [id], onDelete: SetNull)
+
+  @@id([auftragId, mitarbeiterId])
+  @@map("auftrag_mitarbeiter")
+}
+
+/// Packmaß (Kiste/Karton) einer Sendung — ein Auftrag kann mehrere haben (V2 ≥2.39).
+model AuftragPackmass {
+  id        String  @id @default(uuid())
+  auftragId String  @map("auftrag_id")
+  name      String?
+  laenge    Float?
+  breite    Float?
+  hoehe     Float?
+  gewicht   Float?
+  position  Int     @default(0)
+
+  auftrag Auftrag @relation(fields: [auftragId], references: [id], onDelete: Cascade)
+
+  @@map("auftrag_packmass")
+}
+
+model AuftragPosition {
+  id            String  @id @default(uuid())
+  auftragId     String  @map("auftrag_id")
+  posNr         Int     @map("pos_nr")
+  artikelnummer String?
+  bezeichnung   String
+  menge         Float
+  einheit       String  @default("Stk")
+
+  auftrag Auftrag  @relation(fields: [auftragId], references: [id], onDelete: Cascade)
+  artikel Artikel? @relation(fields: [artikelnummer], references: [artikelnummer])
+
+  @@map("auftrag_position")
+}
+
+// ─── Zeiterfassung ────────────────────────────────────────────────────────────
+
+model Zeitkategorie {
+  id         String   @id @default(uuid())
+  name       String   @unique
+  sortorder  Int      @default(0)
+  erstelltAm DateTime @default(now()) @map("erstellt_am")
+
+  zeiten Auftragszeit[]
+
+  @@map("zeitkategorie")
+}
+
+model Auftragszeit {
+  id               String                @id @default(uuid())
+  mitarbeiterId    String                @map("mitarbeiter_id")
+  auftragId        String                @map("auftrag_id")
+  kategorieId      String?               @map("kategorie_id")
+  start            DateTime
+  ende             DateTime?
+  beendetDurch     Zeitbeendigungsgrund? @map("beendet_durch")
+  istNachtrag      Boolean               @default(false) @map("ist_nachtrag")
+  istKorrektur     Boolean               @default(false) @map("ist_korrektur")
+  korrekturMinuten Float?                @map("korrektur_minuten")
+  erstelltAm       DateTime              @default(now()) @map("erstellt_am")
+
+  mitarbeiter Mitarbeiter    @relation(fields: [mitarbeiterId], references: [id])
+  auftrag     Auftrag        @relation(fields: [auftragId], references: [id], onDelete: Cascade)
+  kategorie   Zeitkategorie? @relation(fields: [kategorieId], references: [id])
+
+  @@map("auftragszeit")
+}
+
+// ─── Qualität ─────────────────────────────────────────────────────────────────
+
+model Qualitaet {
+  id            String   @id @default(uuid())
+  auftragId     String   @map("auftrag_id")
+  mitarbeiterId String?  @map("mitarbeiter_id")
+  gut           Float    @default(0)
+  ausschuss     Float    @default(0)
+  nacharbeit    Float    @default(0)
+  bemerkung     String?
+  zeitstempel   DateTime @default(now())
+
+  auftrag     Auftrag      @relation(fields: [auftragId], references: [id], onDelete: Cascade)
+  mitarbeiter Mitarbeiter? @relation(fields: [mitarbeiterId], references: [id])
+
+  @@map("qualitaet")
+}
+
+// ─── Dateien & Belege ─────────────────────────────────────────────────────────
+
+model Datei {
+  id           String   @id @default(uuid())
+  auftragId    String   @map("auftrag_id")
+  name         String
+  size         Int
+  mimetype     String
+  quelle       String?
+  speicherpfad String   @map("speicherpfad")
+  hinzugefuegt DateTime @default(now())
+
+  auftrag Auftrag @relation(fields: [auftragId], references: [id], onDelete: Cascade)
+
+  @@map("datei")
+}
+
+model ImportierterBeleg {
+  dateiname     String   @id
+  mtime         DateTime
+  size          Int
+  abNummer      String?  @map("ab_nummer")
+  verarbeitetAm DateTime @default(now()) @map("verarbeitet_am")
+
+  @@map("importierter_beleg")
+}
+
+// ─── Material & Inventur ──────────────────────────────────────────────────────
+
+model Materialbewegung {
+  id             String               @id @default(uuid())
+  artikelnummer  String
+  lagerortId     String               @map("lagerort_id")
+  lagerortZielId String?              @map("lagerort_ziel_id")
+  art            Materialbewegungsart
+  menge          Float
+  auftragId      String?              @map("auftrag_id")
+  benutzerId     String?              @map("benutzer_id")
+  bemerkung      String?
+  gebuchtAm      DateTime             @default(now()) @map("gebucht_am")
+  // Materialbewertung (KLR I): wertmäßige Erfassung; alle nullable (additiv).
+  einstandspreis Decimal?             @db.Decimal(10, 4) @map("einstandspreis")
+  kostenstelle   String?              @map("kostenstelle")
+  kostentraeger  String?              @map("kostentraeger")
+
+  artikel      Artikel           @relation(fields: [artikelnummer], references: [artikelnummer])
+  lagerort     Lagerort          @relation("LagerortQuelle", fields: [lagerortId], references: [id])
+  lagerortZiel Lagerort?         @relation("LagerortZiel", fields: [lagerortZielId], references: [id])
+  auftrag      Auftrag?          @relation(fields: [auftragId], references: [id])
+  benutzer     Benutzer?         @relation(fields: [benutzerId], references: [id])
+  inventur     InventurZaehlung?
+
+  @@map("materialbewegung")
+}
+
+model InventurZaehlung {
+  id            String         @id @default(uuid())
+  artikelnummer String
+  sollMenge     Float          @map("soll_menge")
+  istMenge      Float?         @map("ist_menge")
+  // NULL bis zur Buchung — der Lagerort wird erst beim Buchen gewählt (V2-Ablauf)
+  lagerortId    String?        @map("lagerort_id")
+  status        Inventurstatus @default(erfasst)
+  bewegungId    String?        @unique @map("bewegung_id")
+  notiz         String?
+  erfasstVonId  String?        @map("erfasst_von_id")
+  erfasstAm     DateTime       @default(now()) @map("erfasst_am")
+  gebuchtVonId  String?        @map("gebucht_von_id")
+  gebuchtAm     DateTime?      @map("gebucht_am")
+
+  artikel    Artikel           @relation(fields: [artikelnummer], references: [artikelnummer])
+  lagerort   Lagerort?         @relation(fields: [lagerortId], references: [id])
+  bewegung   Materialbewegung? @relation(fields: [bewegungId], references: [id])
+  erfasstVon Benutzer?         @relation("ErfasstVon", fields: [erfasstVonId], references: [id])
+  gebuchtVon Benutzer?         @relation("GebuchtVon", fields: [gebuchtVonId], references: [id])
+
+  @@map("inventur_zaehlung")
+}
+
+model KommissionierCheck {
+  auftragId     String    @map("auftrag_id")
+  artikelnummer String
+  abgehakt      Boolean   @default(false)
+  abgehaktAm    DateTime? @map("abgehakt_am")
+  abgehaktVonId String?   @map("abgehakt_von_id")
+
+  auftrag     Auftrag   @relation(fields: [auftragId], references: [id], onDelete: Cascade)
+  artikel     Artikel   @relation(fields: [artikelnummer], references: [artikelnummer])
+  abgehaktVon Benutzer? @relation(fields: [abgehaktVonId], references: [id])
+
+  @@id([auftragId, artikelnummer])
+  @@map("kommissionier_check")
+}
+
+// ─── V3 NEU: Lieferanten & EOQ ────────────────────────────────────────────────
+
+model Lieferant {
+  id             String   @id @default(uuid())
+  name           String   @unique
+  kontakt        String?
+  email          String?
+  telefon        String?
+  lieferzeitTage Int      @default(7) @map("lieferzeit_tage")
+  aktiv          Boolean  @default(true)
+  erstelltAm     DateTime @default(now()) @map("erstellt_am")
+
+  artikel ArtikelLieferant[]
+
+  @@map("lieferant")
+}
+
+model ArtikelLieferant {
+  id              String   @id @default(uuid())
+  artikelnummer   String
+  lieferantId     String   @map("lieferant_id")
+  einkaufspreis   Decimal  @db.Decimal(10, 4)
+  mindestmenge    Float    @default(1)
+  // EOQ: optimale Bestellmenge = sqrt(2 * jahresbedarf * bestellkosten / lagerkostensatz)
+  bestellkosten   Decimal? @db.Decimal(10, 2) @map("bestellkosten")
+  lagerkostensatz Decimal? @db.Decimal(10, 4) @map("lagerkostensatz")
+  jahresbedarf    Float?   @map("jahresbedarf")
+  erstelltAm      DateTime @default(now()) @map("erstellt_am")
+
+  artikel   Artikel   @relation(fields: [artikelnummer], references: [artikelnummer], onDelete: Cascade)
+  lieferant Lieferant @relation(fields: [lieferantId], references: [id], onDelete: Cascade)
+
+  @@unique([artikelnummer, lieferantId])
+  @@map("artikel_lieferant")
+}
+
+// ─── V3 NEU: Auftragsplanung / Timeline ───────────────────────────────────────
+
+model AuftragZuweisung {
+  id            String   @id @default(uuid())
+  auftragId     String   @map("auftrag_id")
+  mitarbeiterId String   @map("mitarbeiter_id")
+  geplantVon    DateTime @map("geplant_von")
+  geplantBis    DateTime @map("geplant_bis")
+  notiz         String?
+  erstelltAm    DateTime @default(now()) @map("erstellt_am")
+
+  auftrag     Auftrag     @relation(fields: [auftragId], references: [id], onDelete: Cascade)
+  mitarbeiter Mitarbeiter @relation(fields: [mitarbeiterId], references: [id])
+
+  @@map("auftrag_zuweisung")
+}

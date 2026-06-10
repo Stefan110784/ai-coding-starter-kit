@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireRecht, err, ok } from "@/lib/api-helpers";
-import { lagerKennzahlenAusDb } from "@/lib/lagerkennzahlen";
+import { lagerKennzahlenAusDb, materialwertAusDb } from "@/lib/lagerkennzahlen";
 
 /** Lagerkennzahlen (Umschlag, Ø-Bestand, Lagerdauer) für einen Zeitraum. */
 export async function GET(req: NextRequest) {
@@ -18,6 +18,9 @@ export async function GET(req: NextRequest) {
     return err("Ungültiger Zeitraum");
   }
 
-  const kennzahlen = await lagerKennzahlenAusDb(prisma, von, bis);
-  return ok(kennzahlen);
+  const [kennzahlen, materialwert] = await Promise.all([
+    lagerKennzahlenAusDb(prisma, von, bis),
+    materialwertAusDb(prisma, von, bis),
+  ]);
+  return ok({ ...kennzahlen, ...materialwert });
 }
