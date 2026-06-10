@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { z } from "zod";
+import { feldFehler } from "@/lib/form-errors";
 import useSWR, { mutate } from "swr";
 import { toast } from "sonner";
 import { Plus, QrCode, Search, Pencil, Trash2, Tag } from "lucide-react";
@@ -111,6 +113,7 @@ export default function MaterialPage() {
     bemerkung: "",
     einstandspreis: "",
   });
+  const [bewErrors, setBewErrors] = useState<Record<string, string>>({});
 
   const { data: bewegungen, isLoading: bewegungenLoading } = useSWR(
     `/api/material/bewegungen?skip=${bewSeite * 100}&take=100`,
@@ -131,6 +134,20 @@ export default function MaterialPage() {
 
   async function handleBewegung(e: React.FormEvent) {
     e.preventDefault();
+    const schema = z.object({
+      artikelnummer: z.string().min(1, "Artikel wählen"),
+      lagerortId: z.string().min(1, "Lagerort wählen"),
+      menge: z.number().refine((m) => m !== 0 && Number.isFinite(m), "Menge ≠ 0 erforderlich"),
+    });
+    const parsed = schema.safeParse({
+      artikelnummer: form.artikelnummer,
+      lagerortId: form.lagerortId,
+      menge: form.menge === "" ? NaN : parseFloat(form.menge),
+    });
+    const errs: Record<string, string> = parsed.success ? {} : feldFehler(parsed.error);
+    if (form.art === "umlagerung" && !form.lagerortZielId) errs.lagerortZielId = "Ziellagerort wählen";
+    if (Object.keys(errs).length > 0) { setBewErrors(errs); return; }
+    setBewErrors({});
     const res = await fetch("/api/material/bewegungen", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -712,6 +729,7 @@ export default function MaterialPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {bewErrors.artikelnummer && <p className="text-destructive text-xs">{bewErrors.artikelnummer}</p>}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -738,6 +756,7 @@ export default function MaterialPage() {
                 {(form.art === "korrektur" || form.art === "inventur") && (
                   <p className="text-xs text-muted-foreground">Negative Menge = Abbuchung</p>
                 )}
+                {bewErrors.menge && <p className="text-destructive text-xs">{bewErrors.menge}</p>}
               </div>
             </div>
             <div className="space-y-1.5">
@@ -750,6 +769,7 @@ export default function MaterialPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {bewErrors.lagerortId && <p className="text-destructive text-xs">{bewErrors.lagerortId}</p>}
             </div>
             {form.art === "umlagerung" && (
               <div className="space-y-1.5">
@@ -764,6 +784,7 @@ export default function MaterialPage() {
                       ))}
                   </SelectContent>
                 </Select>
+                {bewErrors.lagerortZielId && <p className="text-destructive text-xs">{bewErrors.lagerortZielId}</p>}
               </div>
             )}
             {form.art === "wareneingang" && (

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { z } from "zod";
+import { feldFehler } from "@/lib/form-errors";
 import useSWR, { mutate } from "swr";
 import { toast } from "sonner";
 import { Plus, UserPlus, Pencil, Trash2, KeyRound, UserCog } from "lucide-react";
@@ -104,6 +106,7 @@ export default function VerwaltungPage() {
   const [maDeactivate, setMaDeactivate] = useState<Mitarbeiter | null>(null);
   const [kontoFor, setKontoFor] = useState<Mitarbeiter | null>(null);
   const [kontoForm, setKontoForm] = useState({ username: "", rolle: "mitarbeiter", passwort: "" });
+  const [kontoErrors, setKontoErrors] = useState<Record<string, string>>({});
 
   // ── Lagerorte ──
   const [loCreate, setLoCreate] = useState(false);
@@ -118,6 +121,7 @@ export default function VerwaltungPage() {
   // ── Benutzer ──
   const [beCreate, setBeCreate] = useState(false);
   const [beForm, setBeForm] = useState({ username: "", name: "", rolle: "mitarbeiter", passwort: "" });
+  const [beErrors, setBeErrors] = useState<Record<string, string>>({});
   const [beEdit, setBeEdit] = useState<BenutzerEintrag | null>(null);
   const [beRechte, setBeRechte] = useState<Set<string>>(new Set());
   const [beReset, setBeReset] = useState<BenutzerEintrag | null>(null);
@@ -162,6 +166,14 @@ export default function VerwaltungPage() {
   async function createKonto(e: React.FormEvent) {
     e.preventDefault();
     if (!kontoFor) return;
+    const parsed = z
+      .object({
+        username: z.string().trim().min(1, "Benutzername erforderlich"),
+        passwort: z.string().optional().refine((p) => !p || p.length >= 4, "Mindestens 4 Zeichen"),
+      })
+      .safeParse({ username: kontoForm.username, passwort: kontoForm.passwort });
+    if (!parsed.success) { setKontoErrors(feldFehler(parsed.error)); return; }
+    setKontoErrors({});
     const { ok, data } = await send("/api/benutzer", "POST", {
       username: kontoForm.username,
       name: kontoFor.name,
@@ -235,6 +247,14 @@ export default function VerwaltungPage() {
   // ── Benutzer-Handler ──
   async function createBenutzer(e: React.FormEvent) {
     e.preventDefault();
+    const parsed = z
+      .object({
+        username: z.string().trim().min(1, "Benutzername erforderlich"),
+        passwort: z.string().optional().refine((p) => !p || p.length >= 4, "Mindestens 4 Zeichen"),
+      })
+      .safeParse({ username: beForm.username, passwort: beForm.passwort });
+    if (!parsed.success) { setBeErrors(feldFehler(parsed.error)); return; }
+    setBeErrors({});
     const { ok, data } = await send("/api/benutzer", "POST", {
       username: beForm.username,
       name: beForm.name || undefined,
@@ -595,6 +615,7 @@ export default function VerwaltungPage() {
             <div className="space-y-1.5">
               <Label>Benutzername *</Label>
               <Input required value={kontoForm.username} onChange={(e) => setKontoForm({ ...kontoForm, username: e.target.value })} />
+              {kontoErrors.username && <p className="text-destructive text-xs">{kontoErrors.username}</p>}
             </div>
             <div className="space-y-1.5">
               <Label>Rolle</Label>
@@ -608,6 +629,7 @@ export default function VerwaltungPage() {
             <div className="space-y-1.5">
               <Label>Passwort (optional)</Label>
               <Input type="password" value={kontoForm.passwort} onChange={(e) => setKontoForm({ ...kontoForm, passwort: e.target.value })} />
+              {kontoErrors.passwort && <p className="text-destructive text-xs">{kontoErrors.passwort}</p>}
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setKontoFor(null)}>Abbrechen</Button>
@@ -714,6 +736,7 @@ export default function VerwaltungPage() {
             <div className="space-y-1.5">
               <Label>Benutzername *</Label>
               <Input required value={beForm.username} onChange={(e) => setBeForm({ ...beForm, username: e.target.value })} />
+              {beErrors.username && <p className="text-destructive text-xs">{beErrors.username}</p>}
             </div>
             <div className="space-y-1.5">
               <Label>Name</Label>
@@ -731,6 +754,7 @@ export default function VerwaltungPage() {
             <div className="space-y-1.5">
               <Label>Passwort (optional)</Label>
               <Input type="password" value={beForm.passwort} onChange={(e) => setBeForm({ ...beForm, passwort: e.target.value })} />
+              {beErrors.passwort && <p className="text-destructive text-xs">{beErrors.passwort}</p>}
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setBeCreate(false)}>Abbrechen</Button>
