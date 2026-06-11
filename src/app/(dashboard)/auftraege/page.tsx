@@ -378,7 +378,7 @@ export default function AuftraegePage() {
 
       {/* ── Detail Sheet ───────────────────────────────────────── */}
       <Sheet open={!!selectedId} onOpenChange={(o) => { if (!o) { setSelectedId(null); setEditMode(false); } }}>
-        <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
+        <SheetContent className="w-full sm:max-w-3xl overflow-y-auto">
           {detailLoading || !detail ? (
             <>
               <SheetHeader className="pb-2">

@@ -177,7 +177,7 @@ export function BestellungenTab() {
 
       {/* ── Detail-Sheet ─────────────────────────────────────── */}
       <Sheet open={!!detail} onOpenChange={(o) => { if (!o) setDetailId(null); }}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
+        <SheetContent className="w-full overflow-y-auto sm:max-w-3xl">
           {detail && (
             <>
               <SheetHeader className="pb-2">

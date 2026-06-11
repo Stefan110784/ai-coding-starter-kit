@@ -426,7 +426,7 @@ export default function LieferantenPage() {
 
       {/* ── Lieferant-Detail mit Artikel-Verknüpfungen ── */}
       <Sheet open={!!selectedId} onOpenChange={(o) => { if (!o) setSelectedId(null); }}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
+        <SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
           <SheetHeader className="pb-2">
             <SheetTitle>
               {lieferanten.find((l: { id: string; name: string }) => l.id === selectedId)?.name ?? "Lieferant"}

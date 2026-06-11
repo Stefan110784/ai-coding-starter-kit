@@ -485,7 +485,7 @@ export default function MaterialPage() {
 
       {/* ── Artikel Detail Sheet ──────────────────────────────── */}
       <Sheet open={!!selectedArtikel} onOpenChange={(o) => { if (!o) { setSelectedArtikel(null); setEditMode(false); } }}>
-        <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
+        <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
           {detailLoading || !artikelDetail ? (
             <>
               <SheetHeader className="pb-2">
