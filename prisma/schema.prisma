@@ -69,6 +69,7 @@ model Benutzer {
   hochgeladeneDateien  Datei[]
   qualitaetErfasst     Qualitaet[]
   pruefungen           Pruefung[]
+  abweichungenErfasst  Abweichung[]
 
   @@map("benutzer")
 }
@@ -99,6 +100,7 @@ model Mitarbeiter {
   qualitaet   Qualitaet[]
   zuweisungen AuftragZuweisung[]
   team        AuftragMitarbeiter[]
+  abweichungen Abweichung[]
 
   @@map("mitarbeiter")
 }
@@ -214,6 +216,7 @@ model Auftrag {
   team                AuftragMitarbeiter[]
   packmasse           AuftragPackmass[]
   pruefungen          Pruefung[]
+  abweichungen        Abweichung[]
 
   @@index([status])
   @@index([nummer])
@@ -475,6 +478,62 @@ model Pruefung {
 
   @@index([auftragId])
   @@map("pruefung")
+}
+
+// ─── V3 NEU: Abweichungen / Minimal-CAPA (ISO 9001 Kap. 8.7 / 10.2) ───────────
+
+enum AbweichungTyp {
+  nacharbeit
+  ausschuss
+  reklamationKunde
+  reklamationLieferant
+}
+
+enum AbweichungStatus {
+  offen
+  inBearbeitung
+  abgeschlossen
+}
+
+/// Grund-Katalog für Pareto-Auswertungen (KF3-34). bereich: "nacharbeit" | "fehlteil" | "fuenfs" | …
+model AbweichungsGrund {
+  id      String  @id @default(uuid())
+  name    String  @unique
+  bereich String  @default("nacharbeit")
+  aktiv   Boolean @default(true)
+
+  abweichungen Abweichung[]
+
+  @@map("abweichungs_grund")
+}
+
+/// Strukturierte Abweichung mit Ursache/Maßnahme — Minimal-CAPA, so geschnitten,
+/// dass 5S-Maßnahmen (KF3-36) und Lieferanten-Reklamationen (KF3-30) andocken.
+model Abweichung {
+  id               String           @id @default(uuid())
+  typ              AbweichungTyp
+  status           AbweichungStatus @default(offen)
+  auftragId        String?          @map("auftrag_id")
+  artikelnummer    String?
+  beschreibung     String
+  ursache          String?
+  massnahme        String?
+  grundId          String?          @map("grund_id")
+  verantwortlichId String?          @map("verantwortlich_id")
+  faelligAm        DateTime?        @map("faellig_am")
+  erfasstVonId     String?          @map("erfasst_von_id")
+  erfasstAm        DateTime         @default(now()) @map("erfasst_am")
+  abgeschlossenAm  DateTime?        @map("abgeschlossen_am")
+
+  // SetNull: Abweichungen sind ISO-Aufzeichnungen und überleben die Auftrags-Löschung
+  auftrag        Auftrag?          @relation(fields: [auftragId], references: [id], onDelete: SetNull)
+  grund          AbweichungsGrund? @relation(fields: [grundId], references: [id])
+  verantwortlich Mitarbeiter?      @relation(fields: [verantwortlichId], references: [id])
+  erfasstVon     Benutzer?         @relation(fields: [erfasstVonId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([auftragId])
+  @@map("abweichung")
 }
 
 // ─── V3 NEU: Lieferanten & EOQ ────────────────────────────────────────────────

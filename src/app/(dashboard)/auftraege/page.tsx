@@ -52,6 +52,7 @@ import { PruefungDialog } from "@/components/pruefung-dialog";
 import { MaterialbedarfBlock } from "@/components/material/materialbedarf-block";
 import { AuftragDateien } from "@/components/auftrag-dateien";
 import { AuftragVerlauf } from "@/components/auftrag-verlauf";
+import { AbweichungBlock } from "@/components/abweichung-block";
 import { PackmasseEditor } from "@/components/packmasse-editor";
 import { AuftragTeam } from "@/components/zuweisung-uebersicht";
 import { useMe } from "@/hooks/use-me";
@@ -610,7 +611,9 @@ export default function AuftraegePage() {
                   )}
                 </TabsContent>
 
-                <TabsContent value="qualitaet" className="mt-3">
+                <TabsContent value="qualitaet" className="mt-3 space-y-4">
+                  <AbweichungBlock auftragId={detail.id} />
+                  <Separator />
                   {detail.qualitaet?.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-4">Keine Qualitätseinträge</p>
                   ) : (
