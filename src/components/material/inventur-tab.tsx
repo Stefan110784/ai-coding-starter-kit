@@ -88,9 +88,11 @@ export function InventurTab() {
   );
   const { data: zaehlungen } = useSWR(ZAEHLUNGEN_KEY, fetcher, { refreshInterval: 30000 });
 
-  // Default-Lagerort: der mit dem höchsten Bestand
+  // Default-Lagerort: der mit dem höchsten Bestand — Vorbelegung, sobald die
+  // Daten eingetroffen sind (bewusst setState im Effect; einmalig durch Guard)
   useEffect(() => {
     if (offeneZaehlung && detail?.lagerorte?.length && !buchLagerortId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setBuchLagerortId(detail.lagerorte[0].lagerortId);
     }
   }, [offeneZaehlung, detail, buchLagerortId]);
