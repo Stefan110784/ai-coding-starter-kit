@@ -7,6 +7,7 @@ const patchSchema = z.object({
   name: z.string().min(1).optional(),
   kuerzel: z.string().min(1).max(5).optional(),
   status: z.enum(["aktiv", "inaktiv"]).optional(),
+  wochenstunden: z.number().positive().max(60).nullable().optional(),
 });
 
 type Params = { params: Promise<{ id: string }> };

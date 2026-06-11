@@ -96,6 +96,8 @@ model Mitarbeiter {
   kuerzel    String   @unique
   status     String   @default("aktiv")
   benutzerId String?  @unique @map("benutzer_id")
+  // KF3-35: nur Berechnungsgrundlage für den Soll-VORSCHLAG (kein KPI-Wert)
+  wochenstunden Float?
   erstelltAm DateTime @default(now()) @map("erstellt_am")
 
   benutzer    Benutzer?        @relation(fields: [benutzerId], references: [id], onDelete: SetNull)
@@ -353,11 +355,29 @@ model Zeitkategorie {
   id         String   @id @default(uuid())
   name       String   @unique
   sortorder  Int      @default(0)
+  // KF3-35: false = Gemeinkostenzeit (z. B. Aufräumen, Besprechung) —
+  // zählt nicht in den Zähler des Zeiterfassungsgrads
+  auftragsbezogen Boolean @default(true)
   erstelltAm DateTime @default(now()) @map("erstellt_am")
 
   zeiten Auftragszeit[]
 
   @@map("zeitkategorie")
+}
+
+/// Team-Soll-Anwesenheit je Monat (KF3-35) — bewusst OHNE Mitarbeiter-FK:
+/// ein Personen-Soll ist strukturell nicht abbildbar (nur Team, nur Monat,
+/// nie pro Person — Anforderung Kap. 4, Mitbestimmung). Der Wert absorbiert
+/// Feiertage/Urlaub/Krankheit in einer manuell gepflegten Zahl.
+model ZeitSollMonat {
+  id          String   @id @default(uuid())
+  monat       String   @unique // "YYYY-MM"
+  sollStunden Float    @map("soll_stunden")
+  bemerkung   String?
+  erstelltAm  DateTime @default(now()) @map("erstellt_am")
+  geaendertAm DateTime @updatedAt @map("geaendert_am")
+
+  @@map("zeit_soll_monat")
 }
 
 model Auftragszeit {

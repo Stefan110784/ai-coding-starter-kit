@@ -7,6 +7,8 @@ const createSchema = z.object({
   name: z.string().min(1),
   kuerzel: z.string().min(1).max(5).toUpperCase(),
   status: z.enum(["aktiv", "inaktiv"]).default("aktiv"),
+  // KF3-35: Grundlage für den Soll-Vorschlag des Zeiterfassungsgrads
+  wochenstunden: z.number().positive().max(60).nullable().optional(),
 });
 
 export async function GET(req: NextRequest) {

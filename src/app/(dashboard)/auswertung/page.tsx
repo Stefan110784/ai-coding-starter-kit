@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { KpiDashboard } from "@/components/kpi-dashboard";
 import { ParetoBlock } from "@/components/pareto-block";
+import { ZeiterfassungsgradBlock } from "@/components/zeiterfassungsgrad-block";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -100,6 +101,7 @@ export default function AuswertungPage() {
 
         <TabsContent value="kpi" className="mt-4">
           <KpiDashboard />
+          <ZeiterfassungsgradBlock />
         </TabsContent>
 
         <TabsContent value="pareto" className="mt-4">
