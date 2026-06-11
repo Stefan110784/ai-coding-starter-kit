@@ -40,7 +40,7 @@
 | KF3-22 | **Scanner-Durchgängigkeit** – iOS-Fix (Rückkamera, Stop+Feedback) + Scan-Input in Zeiten/Kommissionierung | In Progress | [Spec](KF3-22-scanner-durchgaengigkeit.md) | 2026-06-11 |
 | KF3-23 | **Auftragspriorität + Tagesliste** – Prioritätsfeld, Arbeitsvorrat als sortierte Queue | In Progress | [Spec](KF3-23-auftragsprioritaet-tagesliste.md) | 2026-06-11 |
 | KF3-24 | **Statusampel** – abgeleitete Ampel je Auftrag für Vertrieb/GF (Basis für CAS-Rückkanal) | In Progress | [Spec](KF3-24-statusampel.md) | 2026-06-11 |
-| KF3-25 | **Audit-Historie** – generisches AuditEvent (Status, Notiz, Felder) + fehlende Benutzerstempel (ISO 7.5) | Roadmap | – | 2026-06-11 |
+| KF3-25 | **Audit-Historie** – generisches AuditEvent (Status, Notiz, Felder) + fehlende Benutzerstempel (ISO 7.5) | In Progress | [Spec](KF3-25-audit-historie.md) | 2026-06-11 |
 | KF3-26 | **Endprüfung** – Pruefung-Modell + hartes Gate vor Auftragsabschluss (ISO 8.6) | Roadmap | – | 2026-06-11 |
 | KF3-27 | **Abweichung/Nacharbeit** – Minimal-CAPA mit Ursache/Maßnahme + Grund-Katalog (ISO 8.7, 10.2) | Roadmap | – | 2026-06-11 |
 | KF3-28 | **Material-Snapshot am Auftrag** – eingefrorene Stücklisten-Auflösung bei Kommissionierung (ISO 7.5) | Roadmap | – | 2026-06-11 |

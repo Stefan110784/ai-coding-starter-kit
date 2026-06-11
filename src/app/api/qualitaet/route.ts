@@ -43,6 +43,8 @@ export async function POST(req: NextRequest) {
     return err("Mindestens eine Menge muss größer 0 sein");
   }
 
-  const eintrag = await prisma.qualitaet.create({ data: parsed.data });
+  const eintrag = await prisma.qualitaet.create({
+    data: { ...parsed.data, erfasstVonId: auth.benutzer.id },
+  });
   return ok(eintrag, 201);
 }

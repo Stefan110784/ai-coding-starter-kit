@@ -64,6 +64,10 @@ model Benutzer {
   inventurGebucht      InventurZaehlung[] @relation("GebuchtVon")
   kommissionierChecks  KommissionierCheck[]
   vergebeneZuweisungen AuftragMitarbeiter[]
+  auditEvents          AuditEvent[]
+  erstellteAuftraege   Auftrag[]
+  hochgeladeneDateien  Datei[]
+  qualitaetErfasst     Qualitaet[]
 
   @@map("benutzer")
 }
@@ -194,8 +198,11 @@ model Auftrag {
   kpiAusgeschlossen   Boolean        @default(false) @map("kpi_ausgeschlossen")
   // Tagesliste-Queue: 0 = Normal, 1 = Hoch, 2 = Dringend (absteigend sortiert)
   prioritaet          Int            @default(0)
+  // Benutzerstempel (ISO 7.5); nullable: Altdaten + Beleg-Import bleiben NULL
+  erstelltVonId       String?        @map("erstellt_von_id")
   erstelltAm          DateTime       @default(now()) @map("erstellt_am")
 
+  erstelltVon         Benutzer?      @relation(fields: [erstelltVonId], references: [id], onDelete: SetNull)
   positionen          AuftragPosition[]
   zeiten              Auftragszeit[]
   dateien             Datei[]
@@ -300,10 +307,13 @@ model Qualitaet {
   ausschuss     Float    @default(0)
   nacharbeit    Float    @default(0)
   bemerkung     String?
+  // Wer hat erfasst (Benutzer) — getrennt von "wer hat gearbeitet" (Mitarbeiter)
+  erfasstVonId  String?  @map("erfasst_von_id")
   zeitstempel   DateTime @default(now())
 
   auftrag     Auftrag      @relation(fields: [auftragId], references: [id], onDelete: Cascade)
   mitarbeiter Mitarbeiter? @relation(fields: [mitarbeiterId], references: [id])
+  erfasstVon  Benutzer?    @relation(fields: [erfasstVonId], references: [id], onDelete: SetNull)
 
   @@map("qualitaet")
 }
@@ -311,16 +321,18 @@ model Qualitaet {
 // ─── Dateien & Belege ─────────────────────────────────────────────────────────
 
 model Datei {
-  id           String   @id @default(uuid())
-  auftragId    String   @map("auftrag_id")
-  name         String
-  size         Int
-  mimetype     String
-  quelle       String?
-  speicherpfad String   @map("speicherpfad")
-  hinzugefuegt DateTime @default(now())
+  id               String   @id @default(uuid())
+  auftragId        String   @map("auftrag_id")
+  name             String
+  size             Int
+  mimetype         String
+  quelle           String?
+  speicherpfad     String   @map("speicherpfad")
+  hochgeladenVonId String?  @map("hochgeladen_von_id")
+  hinzugefuegt     DateTime @default(now())
 
-  auftrag Auftrag @relation(fields: [auftragId], references: [id], onDelete: Cascade)
+  auftrag        Auftrag   @relation(fields: [auftragId], references: [id], onDelete: Cascade)
+  hochgeladenVon Benutzer? @relation(fields: [hochgeladenVonId], references: [id], onDelete: SetNull)
 
   @@map("datei")
 }
@@ -400,6 +412,29 @@ model KommissionierCheck {
 
   @@id([auftragId, artikelnummer])
   @@map("kommissionier_check")
+}
+
+// ─── V3 NEU: Audit-Historie (ISO 9001 Kap. 7.5) ──────────────────────────────
+
+/// Generisches Ereignis-Log: Wer hat wann was geändert. Bewusst OHNE FK auf die
+/// Zielentität, damit der Nachweis eine Löschung (z. B. Auftrag-Cascade) überlebt.
+model AuditEvent {
+  id          String   @id @default(uuid())
+  entitaet    String // "auftrag" | "artikel" | "datei" | …
+  entitaetId  String   @map("entitaet_id")
+  aktion      String // "statuswechsel" | "feldAenderung" | "erstellt" | "geloescht" | "endpruefung" | …
+  feld        String?
+  altWert     String?  @map("alt_wert")
+  neuWert     String?  @map("neu_wert")
+  kontext     Json?
+  benutzerId  String?  @map("benutzer_id")
+  zeitstempel DateTime @default(now())
+
+  benutzer Benutzer? @relation(fields: [benutzerId], references: [id], onDelete: SetNull)
+
+  @@index([entitaet, entitaetId])
+  @@index([zeitstempel])
+  @@map("audit_event")
 }
 
 // ─── V3 NEU: Lieferanten & EOQ ────────────────────────────────────────────────

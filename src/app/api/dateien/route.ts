@@ -31,5 +31,5 @@ export async function POST(req: NextRequest) {
   if (!auftragId) return err("auftragId erforderlich");
   if (!(file instanceof File)) return err("Feld 'datei' erforderlich");
 
-  return legeDateiAn(auftragId, file, { foto: false });
+  return legeDateiAn(auftragId, file, { foto: false, benutzerId: auth.benutzer.id });
 }

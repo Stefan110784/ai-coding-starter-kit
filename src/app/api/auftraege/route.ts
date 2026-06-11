@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, err, ok } from "@/lib/api-helpers";
+import { auditEintrag } from "@/lib/audit";
 
 const createSchema = z.object({
   nummer: z.string().min(1),
@@ -69,14 +70,25 @@ export async function POST(req: NextRequest) {
   });
   if (existing) return err("Auftragsnummer bereits vergeben", 409);
 
-  const auftrag = await prisma.auftrag.create({
-    data: {
-      ...data,
-      positionen: positionen
-        ? { create: positionen }
-        : undefined,
-    },
-    include: { positionen: true },
+  const auftrag = await prisma.$transaction(async (tx) => {
+    const angelegt = await tx.auftrag.create({
+      data: {
+        ...data,
+        erstelltVonId: auth.benutzer.id,
+        positionen: positionen
+          ? { create: positionen }
+          : undefined,
+      },
+      include: { positionen: true },
+    });
+    await auditEintrag(tx, {
+      entitaet: "auftrag",
+      entitaetId: angelegt.id,
+      aktion: "erstellt",
+      kontext: { nummer: angelegt.nummer, bezeichnung: angelegt.bezeichnung },
+      benutzerId: auth.benutzer.id,
+    });
+    return angelegt;
   });
 
   return ok(auftrag, 201);

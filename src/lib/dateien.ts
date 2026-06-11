@@ -45,7 +45,7 @@ function rateMimetype(name: string, typ: string | undefined): string {
 export async function legeDateiAn(
   auftragId: string,
   file: File,
-  opts: { foto: boolean }
+  opts: { foto: boolean; benutzerId?: string }
 ): Promise<NextResponse> {
   const auftrag = await prisma.auftrag.findUnique({ where: { id: auftragId } });
   if (!auftrag) return err("Auftrag nicht gefunden", 404);
@@ -73,6 +73,7 @@ export async function legeDateiAn(
       mimetype,
       quelle: opts.foto ? "foto" : "upload",
       speicherpfad: rel,
+      hochgeladenVonId: opts.benutzerId ?? null,
     },
   });
 

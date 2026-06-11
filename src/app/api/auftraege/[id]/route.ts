@@ -13,7 +13,26 @@ import {
   type NettobedarfResult,
   type BedarfPosition,
 } from "@/lib/stueckliste";
+import { auditEintrag, auditFeldDiff } from "@/lib/audit";
 import type { Prisma } from "@/generated/prisma";
+
+/** Felder, deren Änderung im Audit-Log landet (ISO 7.5; KF3-25). */
+const AUDIT_FELDER = [
+  "bezeichnung",
+  "menge",
+  "kunde",
+  "liefertermin",
+  "abNummer",
+  "notiz",
+  "pausengrund",
+  "reworkRequired",
+  "reworkReason",
+  "stalledMissingParts",
+  "stallDays",
+  "kpiAusgeschlossen",
+  "promisedDate",
+  "prioritaet",
+];
 
 const updateSchema = z.object({
   bezeichnung: z.string().optional(),
@@ -165,6 +184,26 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         }
       }
 
+      // Audit (KF3-25): Statuswechsel + geänderte Felder mit Benutzer-/Zeitstempel
+      if (neuerStatus !== undefined && neuerStatus !== auftrag.status) {
+        await auditEintrag(tx, {
+          entitaet: "auftrag",
+          entitaetId: id,
+          aktion: "statuswechsel",
+          feld: "status",
+          altWert: auftrag.status,
+          neuWert: neuerStatus,
+          kontext: { nummer: auftrag.nummer, ...(force ? { force: true } : {}) },
+          benutzerId: auth.benutzer.id,
+        });
+      }
+      const neuFuerAudit: Record<string, unknown> = { ...felder };
+      if ("promisedDate" in felder) {
+        // String → Date, damit der Diff nicht an Formatunterschieden hängt
+        neuFuerAudit.promisedDate = felder.promisedDate ? new Date(felder.promisedDate) : null;
+      }
+      await auditFeldDiff(tx, "auftrag", id, auth.benutzer.id, auftrag, neuFuerAudit, AUDIT_FELDER);
+
       const updated = await tx.auftrag.update({ where: { id }, data });
       return { updated, materialInfo };
     });
@@ -196,9 +235,23 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
   const { id } = await params;
   try {
-    await prisma.auftrag.delete({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      const auftrag = await tx.auftrag.findUnique({ where: { id } });
+      if (!auftrag) throw new MangelNotFound();
+      // Audit VOR dem Cascade-Delete: das FK-lose Event ist danach der
+      // einzige verbleibende Nachweis (ISO 7.5).
+      await auditEintrag(tx, {
+        entitaet: "auftrag",
+        entitaetId: id,
+        aktion: "geloescht",
+        kontext: { nummer: auftrag.nummer, bezeichnung: auftrag.bezeichnung, status: auftrag.status },
+        benutzerId: auth.benutzer.id,
+      });
+      await tx.auftrag.delete({ where: { id } });
+    });
     return ok({ ok: true });
   } catch (e) {
+    if (e instanceof MangelNotFound) return err("Auftrag nicht gefunden", 404);
     return handlePrismaError(e);
   }
 }

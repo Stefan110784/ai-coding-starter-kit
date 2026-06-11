@@ -50,6 +50,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { KommissionierDialog } from "@/components/material/kommissionier-dialog";
 import { MaterialbedarfBlock } from "@/components/material/materialbedarf-block";
 import { AuftragDateien } from "@/components/auftrag-dateien";
+import { AuftragVerlauf } from "@/components/auftrag-verlauf";
 import { PackmasseEditor } from "@/components/packmasse-editor";
 import { AuftragTeam } from "@/components/zuweisung-uebersicht";
 import { useMe } from "@/hooks/use-me";
@@ -507,7 +508,14 @@ export default function AuftraegePage() {
                   <TabsTrigger value="versand" className="flex-1">
                     Versand & Team
                   </TabsTrigger>
+                  <TabsTrigger value="verlauf" className="flex-1">
+                    Verlauf
+                  </TabsTrigger>
                 </TabsList>
+
+                <TabsContent value="verlauf" className="mt-3">
+                  <AuftragVerlauf auftragId={detail.id} />
+                </TabsContent>
 
                 <TabsContent value="material" className="mt-3">
                   <MaterialbedarfBlock auftragId={detail.id} />
