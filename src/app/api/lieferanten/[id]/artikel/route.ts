@@ -33,9 +33,21 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (!artikel) return err("Artikel nicht gefunden", 404);
 
   try {
-    const link = await prisma.artikelLieferant.create({
-      data: { ...parsed.data, lieferantId: id },
-      include: { artikel: { select: { artikelnummer: true, bezeichnung: true, einheit: true } } },
+    const link = await prisma.$transaction(async (tx) => {
+      const angelegt = await tx.artikelLieferant.create({
+        data: { ...parsed.data, lieferantId: id },
+        include: { artikel: { select: { artikelnummer: true, bezeichnung: true, einheit: true } } },
+      });
+      // Preishistorie (KF3-31): initialer Preis als erste Historien-Zeile
+      await tx.artikelLieferantPreis.create({
+        data: {
+          artikelLieferantId: angelegt.id,
+          preis: parsed.data.einkaufspreis,
+          quelle: "manuell",
+          benutzerId: auth.benutzer.id,
+        },
+      });
+      return angelegt;
     });
     return ok(link, 201);
   } catch (e) {

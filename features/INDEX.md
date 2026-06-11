@@ -46,8 +46,8 @@
 | KF3-28 | **Material-Snapshot am Auftrag** – eingefrorene Stücklisten-Auflösung bei Kommissionierung (ISO 7.5) | In Progress | [Spec](KF3-28-material-snapshot.md) | 2026-06-11 |
 | KF3-29 | **Bestellwesen** – Bestellung/Position, Bestellvorschläge (EOQ+Meldebestand), Überfälligkeits-Ampel | Roadmap | – | 2026-06-11 |
 | KF3-30 | **Wareneingang gegen Bestellung** – Soll-Ist-Abgleich, Teillieferung, Eingangsprüfung, Scanner | Roadmap | – | 2026-06-11 |
-| KF3-31 | **Preishistorie** – ArtikelLieferantPreis append-only, Quelle manuell/Bestellung | Roadmap | – | 2026-06-11 |
-| KF3-32 | **Lieferantenbewertung** – Termintreue + Qualität, rein abgeleitet (ISO 8.4) | Roadmap | – | 2026-06-11 |
+| KF3-31 | **Preishistorie** – ArtikelLieferantPreis append-only, Quelle manuell/Bestellung | In Progress | [Spec](KF3-31-preishistorie.md) | 2026-06-11 |
+| KF3-32 | **Lieferantenbewertung** – Termintreue + Qualität, rein abgeleitet (ISO 8.4) | In Progress | [Spec](KF3-32-lieferantenbewertung.md) | 2026-06-11 |
 | KF3-33 | **Materialreservierung** – Reservierung je Auftrag + Verfügbarkeitsprüfung beim Anlegen | Roadmap | – | 2026-06-11 |
 | KF3-34 | **Pareto-Auswertungen** – Fehlteile + Nacharbeitsgründe (Grund-Katalog aus KF3-27) | Roadmap | – | 2026-06-11 |
 | KF3-35 | **Zeiterfassungsgrad-KPI** – Soll-Anwesenheit + Abwesenheiten, nur Team/Monat (Zielkorridor 70–85 %) | Roadmap | – | 2026-06-11 |

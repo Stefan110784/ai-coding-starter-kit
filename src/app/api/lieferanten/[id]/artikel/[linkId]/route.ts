@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin, err, ok, handlePrismaError } from "@/lib/api-helpers";
+import { requireAdmin, requireRecht, err, ok, handlePrismaError } from "@/lib/api-helpers";
 
 type Params = { params: Promise<{ id: string; linkId: string }> };
 
@@ -26,15 +26,50 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!link || link.lieferantId !== id) return err("Verknüpfung nicht gefunden", 404);
 
   try {
-    const aktualisiert = await prisma.artikelLieferant.update({
-      where: { id: linkId },
-      data: parsed.data,
-      include: { artikel: { select: { artikelnummer: true, bezeichnung: true, einheit: true } } },
+    const aktualisiert = await prisma.$transaction(async (tx) => {
+      const neu = await tx.artikelLieferant.update({
+        where: { id: linkId },
+        data: parsed.data,
+        include: { artikel: { select: { artikelnummer: true, bezeichnung: true, einheit: true } } },
+      });
+      // Preishistorie (KF3-31): Preisänderung hängt eine Zeile an
+      if (
+        parsed.data.einkaufspreis !== undefined &&
+        Number(link.einkaufspreis) !== parsed.data.einkaufspreis
+      ) {
+        await tx.artikelLieferantPreis.create({
+          data: {
+            artikelLieferantId: linkId,
+            preis: parsed.data.einkaufspreis,
+            quelle: "manuell",
+            benutzerId: auth.benutzer.id,
+          },
+        });
+      }
+      return neu;
     });
     return ok(aktualisiert);
   } catch (e) {
     return handlePrismaError(e);
   }
+}
+
+/** Preishistorie eines Artikel-Lieferant-Links (KF3-31), neueste zuerst. */
+export async function GET(req: NextRequest, { params }: Params) {
+  const auth = await requireRecht(req, "lieferanten");
+  if ("status" in auth) return auth;
+
+  const { id, linkId } = await params;
+  const link = await prisma.artikelLieferant.findUnique({ where: { id: linkId } });
+  if (!link || link.lieferantId !== id) return err("Verknüpfung nicht gefunden", 404);
+
+  const preise = await prisma.artikelLieferantPreis.findMany({
+    where: { artikelLieferantId: linkId },
+    include: { benutzer: { select: { username: true, name: true } } },
+    orderBy: { gueltigAb: "desc" },
+    take: 50,
+  });
+  return ok(preise.map((p) => ({ ...p, preis: Number(p.preis) })));
 }
 
 export async function DELETE(req: NextRequest, { params }: Params) {

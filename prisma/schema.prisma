@@ -71,6 +71,7 @@ model Benutzer {
   pruefungen           Pruefung[]
   abweichungenErfasst  Abweichung[]
   bestellungenAngelegt Bestellung[]
+  preisAenderungen     ArtikelLieferantPreis[]
 
   @@map("benutzer")
 }
@@ -605,9 +606,28 @@ model ArtikelLieferant {
 
   artikel   Artikel   @relation(fields: [artikelnummer], references: [artikelnummer], onDelete: Cascade)
   lieferant Lieferant @relation(fields: [lieferantId], references: [id], onDelete: Cascade)
+  preise    ArtikelLieferantPreis[]
 
   @@unique([artikelnummer, lieferantId])
   @@map("artikel_lieferant")
+}
+
+/// Append-only Preishistorie je Artikel-Lieferant-Link (KF3-31; ISO-Leitsatz
+/// „Historie statt überschreibbarer Felder"). einkaufspreis am Link bleibt
+/// der aktuelle Wert — jede Änderung hängt hier eine Zeile an.
+model ArtikelLieferantPreis {
+  id                 String   @id @default(uuid())
+  artikelLieferantId String   @map("artikel_lieferant_id")
+  preis              Decimal  @db.Decimal(10, 4)
+  gueltigAb          DateTime @default(now()) @map("gueltig_ab")
+  quelle             String? // "manuell" | "bestellung"
+  benutzerId         String?  @map("benutzer_id")
+
+  artikelLieferant ArtikelLieferant @relation(fields: [artikelLieferantId], references: [id], onDelete: Cascade)
+  benutzer         Benutzer?        @relation(fields: [benutzerId], references: [id], onDelete: SetNull)
+
+  @@index([artikelLieferantId, gueltigAb])
+  @@map("artikel_lieferant_preis")
 }
 
 // ─── V3 NEU: Einkauf / Bestellwesen (Anforderung Kap. 3; KF3-29/30) ───────────

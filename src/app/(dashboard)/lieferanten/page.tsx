@@ -3,7 +3,7 @@
 import { useState } from "react";
 import useSWR, { mutate } from "swr";
 import { toast } from "sonner";
-import { Plus, Calculator, Trash2, Link2 } from "lucide-react";
+import { Plus, Calculator, Trash2, Link2, History } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { LieferantBewertungBlock, PreisHistorieDialog } from "@/components/einkauf/lieferant-bewertung";
 import { useMe } from "@/hooks/use-me";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -66,6 +67,7 @@ function LieferantDetail({ lieferantId, istAdmin }: { lieferantId: string; istAd
     bestellkosten: "", lagerkostensatz: "", jahresbedarf: "",
   });
   const [loeschLink, setLoeschLink] = useState<ArtikelLink | null>(null);
+  const [historieLink, setHistorieLink] = useState<ArtikelLink | null>(null);
   const { data: vorschlaege } = useSWR(
     showAdd && addForm.artikelnummer.length >= 2
       ? `/api/artikel?q=${encodeURIComponent(addForm.artikelnummer)}`
@@ -128,6 +130,11 @@ function LieferantDetail({ lieferantId, istAdmin }: { lieferantId: string; istAd
         <span>{data.telefon ?? "–"}</span>
         <span className="text-muted-foreground">Lieferzeit</span>
         <span>{data.lieferzeitTage} Tage</span>
+      </div>
+
+      {/* Automatische Bewertung aus Wareneingängen + Eingangsprüfungen (KF3-32) */}
+      <div className="mt-3">
+        <LieferantBewertungBlock lieferantId={lieferantId} />
       </div>
 
       <Separator className="my-3" />
@@ -230,15 +237,27 @@ function LieferantDetail({ lieferantId, istAdmin }: { lieferantId: string; istAd
                   </TableCell>
                   {istAdmin && (
                     <TableCell>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="size-6 text-destructive"
-                        onClick={() => setLoeschLink(l)}
-                        aria-label="Verknüpfung entfernen"
-                      >
-                        <Trash2 className="size-3" />
-                      </Button>
+                      <div className="flex">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="size-6"
+                          onClick={() => setHistorieLink(l)}
+                          aria-label="Preisverlauf"
+                          title="Preisverlauf"
+                        >
+                          <History className="size-3" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="size-6 text-destructive"
+                          onClick={() => setLoeschLink(l)}
+                          aria-label="Verknüpfung entfernen"
+                        >
+                          <Trash2 className="size-3" />
+                        </Button>
+                      </div>
                     </TableCell>
                   )}
                 </TableRow>
@@ -255,6 +274,13 @@ function LieferantDetail({ lieferantId, istAdmin }: { lieferantId: string; istAd
         description={`Die Zuordnung von "${loeschLink?.artikel.artikelnummer}" zu diesem Lieferanten wird entfernt. Der Artikel selbst bleibt erhalten.`}
         confirmLabel="Entfernen"
         onConfirm={entfernen}
+      />
+
+      <PreisHistorieDialog
+        link={historieLink ? { id: historieLink.id, artikelnummer: historieLink.artikel.artikelnummer } : null}
+        lieferantId={lieferantId}
+        open={!!historieLink}
+        onOpenChange={(o) => { if (!o) setHistorieLink(null); }}
       />
     </>
   );
