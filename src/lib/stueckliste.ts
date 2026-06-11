@@ -518,6 +518,34 @@ export async function entnahmenBuchen(
   return gebucht;
 }
 
+/**
+ * Friert die aufgelöste Stückliste eines Auftrags ein (ISO 7.5, KF3-28).
+ * Direkt neben entnahmenBuchen aufrufen — die Bedarfsberechnung liegt dort
+ * ohnehin schon vor. Re-Kommissionierung überschreibt den alten Stand.
+ */
+export async function materialSnapshotSchreiben(
+  tx: Db,
+  auftragId: string,
+  bedarf?: NettobedarfResult
+): Promise<void> {
+  const result = bedarf ?? (await nettobedarfFuerAuftrag(tx, auftragId));
+  await tx.auftragMaterialSnapshot.deleteMany({ where: { auftragId } });
+  if (result.positionen.length === 0) return;
+  await tx.auftragMaterialSnapshot.createMany({
+    data: result.positionen.map((p) => ({
+      auftragId,
+      artikelnummer: p.artikelnummer,
+      bezeichnung: p.bezeichnung,
+      einheit: p.einheit,
+      bruttobedarf: p.bruttobedarf,
+      bestand: p.bestand,
+      nettobedarf: p.nettobedarf,
+      ausLager: p.ausLager,
+      typ: p.typ,
+    })),
+  });
+}
+
 /** Fertigmeldung eines L-Auftrags: Fertigprodukt-Zugang ins Lager (V2: fertigmeldung_buchen). */
 export async function fertigmeldungBuchen(
   tx: Db,

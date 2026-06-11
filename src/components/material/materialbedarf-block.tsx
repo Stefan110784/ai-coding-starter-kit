@@ -74,6 +74,14 @@ export function MaterialbedarfBlock({ auftragId }: { auftragId: string }) {
             <span className="text-muted-foreground">Geplante Fertigungszeit: —</span>
           )}
           {data.mangel && <Badge variant="destructive">Materialmangel</Badge>}
+          {data.eingefroren && (
+            <Badge
+              variant="outline"
+              title={`Materialstand eingefroren bei Kommissionierung${data.eingefrorenAm ? ` am ${new Date(data.eingefrorenAm).toLocaleDateString("de-DE")}` : ""} (ISO 7.5)`}
+            >
+              Stand Kommissionierung
+            </Badge>
+          )}
         </div>
         <div className="flex gap-1">
           <Button size="sm" variant={sicht === "baum" ? "default" : "outline"} onClick={() => setSicht("baum")}>

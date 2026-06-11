@@ -43,7 +43,7 @@
 | KF3-25 | **Audit-Historie** – generisches AuditEvent (Status, Notiz, Felder) + fehlende Benutzerstempel (ISO 7.5) | In Progress | [Spec](KF3-25-audit-historie.md) | 2026-06-11 |
 | KF3-26 | **Endprüfung** – Pruefung-Modell + hartes Gate vor Auftragsabschluss (ISO 8.6) | In Progress | [Spec](KF3-26-endpruefung.md) | 2026-06-11 |
 | KF3-27 | **Abweichung/Nacharbeit** – Minimal-CAPA mit Ursache/Maßnahme + Grund-Katalog (ISO 8.7, 10.2) | In Progress | [Spec](KF3-27-abweichung-capa.md) | 2026-06-11 |
-| KF3-28 | **Material-Snapshot am Auftrag** – eingefrorene Stücklisten-Auflösung bei Kommissionierung (ISO 7.5) | Roadmap | – | 2026-06-11 |
+| KF3-28 | **Material-Snapshot am Auftrag** – eingefrorene Stücklisten-Auflösung bei Kommissionierung (ISO 7.5) | In Progress | [Spec](KF3-28-material-snapshot.md) | 2026-06-11 |
 | KF3-29 | **Bestellwesen** – Bestellung/Position, Bestellvorschläge (EOQ+Meldebestand), Überfälligkeits-Ampel | Roadmap | – | 2026-06-11 |
 | KF3-30 | **Wareneingang gegen Bestellung** – Soll-Ist-Abgleich, Teillieferung, Eingangsprüfung, Scanner | Roadmap | – | 2026-06-11 |
 | KF3-31 | **Preishistorie** – ArtikelLieferantPreis append-only, Quelle manuell/Bestellung | Roadmap | – | 2026-06-11 |

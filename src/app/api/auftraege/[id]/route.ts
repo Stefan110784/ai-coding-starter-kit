@@ -10,6 +10,7 @@ import {
   entnahmenBuchen,
   fertigmeldungBuchen,
   fertigmeldungStornieren,
+  materialSnapshotSchreiben,
   type NettobedarfResult,
   type BedarfPosition,
 } from "@/lib/stueckliste";
@@ -162,6 +163,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           if (bedarf.mangel && !force) throw new MangelError(bedarf.mangelnd);
           const lagerortId = lagerortParam ?? (await ersterAktiverLagerortId(tx));
           if (lagerortId) await entnahmenBuchen(tx, id, auth.benutzer.id, lagerortId, bedarf);
+          // Materialstand einfrieren (ISO 7.5, KF3-28)
+          await materialSnapshotSchreiben(tx, id, bedarf);
         }
 
         // Fertigmeldungs-Hook (L-Aufträge): Zugang bei Abschluss, Storno bei Reaktivierung
@@ -179,7 +182,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           });
           if (!hatEntnahme) {
             const lagerortId = lagerortParam ?? (await ersterAktiverLagerortId(tx));
-            if (lagerortId) await entnahmenBuchen(tx, id, auth.benutzer.id, lagerortId);
+            if (lagerortId) {
+              const nachBedarf = await nettobedarfFuerAuftrag(tx, id);
+              await entnahmenBuchen(tx, id, auth.benutzer.id, lagerortId, nachBedarf);
+              // Auch bei übersprungener Kommissionierung den Materialstand einfrieren (KF3-28)
+              await materialSnapshotSchreiben(tx, id, nachBedarf);
+            }
           }
         }
 

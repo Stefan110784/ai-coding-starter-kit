@@ -217,6 +217,7 @@ model Auftrag {
   packmasse           AuftragPackmass[]
   pruefungen          Pruefung[]
   abweichungen        Abweichung[]
+  materialSnapshots   AuftragMaterialSnapshot[]
 
   @@index([status])
   @@index([nummer])
@@ -478,6 +479,29 @@ model Pruefung {
 
   @@index([auftragId])
   @@map("pruefung")
+}
+
+// ─── V3 NEU: Material-Snapshot am Auftrag (ISO 9001 Kap. 7.5) ─────────────────
+
+/// Eingefrorene Stücklisten-Auflösung zum Kommissionier-Zeitpunkt: beantwortet
+/// „welcher Materialstand galt für Auftrag X" ohne Voll-Versionierung der BOM.
+model AuftragMaterialSnapshot {
+  id            String   @id @default(uuid())
+  auftragId     String   @map("auftrag_id")
+  artikelnummer String
+  bezeichnung   String?
+  einheit       String?
+  bruttobedarf  Float
+  bestand       Float
+  nettobedarf   Float
+  ausLager      Float    @map("aus_lager")
+  typ           String // "einzelteil" | "baugruppe"
+  erstelltAm    DateTime @default(now()) @map("erstellt_am")
+
+  auftrag Auftrag @relation(fields: [auftragId], references: [id], onDelete: Cascade)
+
+  @@unique([auftragId, artikelnummer])
+  @@map("auftrag_material_snapshot")
 }
 
 // ─── V3 NEU: Abweichungen / Minimal-CAPA (ISO 9001 Kap. 8.7 / 10.2) ───────────
