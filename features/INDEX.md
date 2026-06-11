@@ -48,8 +48,8 @@
 | KF3-30 | **Wareneingang gegen Bestellung** – Soll-Ist-Abgleich, Teillieferung, Eingangsprüfung, Scanner | In Progress | [Spec](KF3-30-wareneingang-gegen-bestellung.md) | 2026-06-11 |
 | KF3-31 | **Preishistorie** – ArtikelLieferantPreis append-only, Quelle manuell/Bestellung | In Progress | [Spec](KF3-31-preishistorie.md) | 2026-06-11 |
 | KF3-32 | **Lieferantenbewertung** – Termintreue + Qualität, rein abgeleitet (ISO 8.4) | In Progress | [Spec](KF3-32-lieferantenbewertung.md) | 2026-06-11 |
-| KF3-33 | **Materialreservierung** – Reservierung je Auftrag + Verfügbarkeitsprüfung beim Anlegen | Roadmap | – | 2026-06-11 |
-| KF3-34 | **Pareto-Auswertungen** – Fehlteile + Nacharbeitsgründe (Grund-Katalog aus KF3-27) | Roadmap | – | 2026-06-11 |
+| KF3-33 | **Materialreservierung** – Reservierung je Auftrag + Verfügbarkeitsprüfung beim Anlegen | In Progress | [Spec](KF3-33-materialreservierung.md) | 2026-06-11 |
+| KF3-34 | **Pareto-Auswertungen** – Fehlteile + Nacharbeitsgründe (Grund-Katalog aus KF3-27) | In Progress | [Spec](KF3-34-pareto.md) | 2026-06-11 |
 | KF3-35 | **Zeiterfassungsgrad-KPI** – Soll-Anwesenheit + Abwesenheiten, nur Team/Monat (Zielkorridor 70–85 %) | Roadmap | – | 2026-06-11 |
 | KF3-36 | **5S-Modul** – Monats-Audit mit Checkliste/Foto, Maßnahmen (CAPA), Trend | Roadmap | – | 2026-06-11 |
 | KF3-37 | **Kundenauftrag-Modell** – Kunde + Kundenauftrag, Ende-zu-Ende-Liefertreue | Roadmap | – | 2026-06-11 |

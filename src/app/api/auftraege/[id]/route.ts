@@ -15,6 +15,7 @@ import {
   type BedarfPosition,
 } from "@/lib/stueckliste";
 import { auditEintrag, auditFeldDiff } from "@/lib/audit";
+import { reservierungAufloesen } from "@/lib/reservierung";
 import type { Prisma } from "@/generated/prisma";
 
 /** Felder, deren Änderung im Audit-Log landet (ISO 7.5; KF3-25). */
@@ -175,6 +176,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           if (lagerortId) await entnahmenBuchen(tx, id, auth.benutzer.id, lagerortId, bedarf);
           // Materialstand einfrieren (ISO 7.5, KF3-28)
           await materialSnapshotSchreiben(tx, id, bedarf);
+          // Reservierung in derselben Transaktion durch die Entnahme ersetzen (KF3-33)
+          await reservierungAufloesen(tx, id, "kommissionierung", auth.benutzer.id);
         }
 
         // Fertigmeldungs-Hook (L-Aufträge): Zugang bei Abschluss, Storno bei Reaktivierung
@@ -199,6 +202,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
               await materialSnapshotSchreiben(tx, id, nachBedarf);
             }
           }
+        }
+
+        // Abschluss beendet den Material-Anspruch — gilt für Lager- UND
+        // Fertigungsaufträge, auch wenn Entnahmen schon existierten (KF3-33)
+        if (neuerStatus === "abgeschlossen" && auftrag.status !== "abgeschlossen") {
+          await reservierungAufloesen(tx, id, "abschluss", auth.benutzer.id);
         }
 
         // Pause: offene Zeitbuchungen schließen (V2: schliesse_offene_buchungen)

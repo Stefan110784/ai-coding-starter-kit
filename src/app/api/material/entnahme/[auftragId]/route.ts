@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireRecht, err, ok } from "@/lib/api-helpers";
 import { nettobedarfFuerAuftrag, entnahmenBuchen, materialSnapshotSchreiben } from "@/lib/stueckliste";
+import { reservierungAufloesen } from "@/lib/reservierung";
 
 type Params = { params: Promise<{ auftragId: string }> };
 
@@ -25,6 +26,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     // Auch der manuelle Entnahmepfad friert den Materialstand ein (ISO 7.5,
     // KF3-28) — sonst bliebe dieser Pfad ohne Snapshot (Review-Befund)
     await materialSnapshotSchreiben(tx, auftragId, bedarf);
+    // Entnahme ersetzt den reservierten Anspruch (KF3-33)
+    await reservierungAufloesen(tx, auftragId, "entnahme", auth.benutzer.id);
     return { gebucht, mangel: bedarf.mangel, mangelnd: bedarf.mangelnd };
   });
 

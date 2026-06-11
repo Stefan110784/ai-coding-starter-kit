@@ -3,6 +3,8 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, err, ok } from "@/lib/api-helpers";
 import { auditEintrag } from "@/lib/audit";
+import { nettobedarfFuerAuftrag, type NettobedarfResult } from "@/lib/stueckliste";
+import { reservierungAktualisieren } from "@/lib/reservierung";
 
 const createSchema = z.object({
   nummer: z.string().min(1),
@@ -74,26 +76,43 @@ export async function POST(req: NextRequest) {
   });
   if (existing) return err("Auftragsnummer bereits vergeben", 409);
 
-  const auftrag = await prisma.$transaction(async (tx) => {
-    const angelegt = await tx.auftrag.create({
-      data: {
-        ...data,
-        erstelltVonId: auth.benutzer.id,
-        positionen: positionen
-          ? { create: positionen }
-          : undefined,
-      },
-      include: { positionen: true },
-    });
-    await auditEintrag(tx, {
-      entitaet: "auftrag",
-      entitaetId: angelegt.id,
-      aktion: "erstellt",
-      kontext: { nummer: angelegt.nummer, bezeichnung: angelegt.bezeichnung },
-      benutzerId: auth.benutzer.id,
-    });
-    return angelegt;
-  });
+  const anlegen = async () =>
+    prisma.$transaction(async (tx) => {
+      const angelegt = await tx.auftrag.create({
+        data: {
+          ...data,
+          erstelltVonId: auth.benutzer.id,
+          positionen: positionen
+            ? { create: positionen }
+            : undefined,
+        },
+        include: { positionen: true },
+      });
+      await auditEintrag(tx, {
+        entitaet: "auftrag",
+        entitaetId: angelegt.id,
+        aktion: "erstellt",
+        kontext: { nummer: angelegt.nummer, bezeichnung: angelegt.bezeichnung },
+        benutzerId: auth.benutzer.id,
+      });
+      // Materialreservierung + Verfügbarkeitsprüfung (KF3-33): Netting gegen
+      // effektiven Bestand, Anspruch in derselben Transaktion fixieren.
+      let material: NettobedarfResult | null = null;
+      if (angelegt.positionen.some((p) => p.artikelnummer)) {
+        material = await nettobedarfFuerAuftrag(tx, angelegt.id);
+        await reservierungAktualisieren(tx, angelegt.id, material, auth.benutzer.id);
+      }
+      return { ...angelegt, material };
+    }, { isolationLevel: "Serializable" });
 
-  return ok(auftrag, 201);
+  // Serializable (KF3-33): zwei parallele Anlagen dürfen nicht beide den
+  // vollen Bestand sehen und doppelt reservieren; bei P2034 einmal wiederholen.
+  try {
+    return ok(await anlegen(), 201);
+  } catch (e) {
+    if ((e as { code?: string })?.code === "P2034") {
+      return ok(await anlegen(), 201);
+    }
+    throw e;
+  }
 }

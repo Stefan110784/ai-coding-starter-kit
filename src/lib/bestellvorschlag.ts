@@ -8,6 +8,7 @@
 import { calculateEOQ } from "@/lib/eoq";
 import { bestandJeArtikel, type Db } from "@/lib/bestand";
 import { offeneBestellmengeJeArtikel } from "@/lib/bestellung";
+import { reserviertJeArtikel } from "@/lib/reservierung";
 
 export interface VorschlagLieferant {
   lieferantId: string;
@@ -24,6 +25,7 @@ export interface Bestellvorschlag {
   einheit: string;
   bestand: number;
   offenBestellt: number;
+  reserviert: number;
   verfuegbar: number;
   mindestbestand: number;
   vorschlagsmenge: number;
@@ -63,7 +65,7 @@ export function eoqAusLink(link: {
  * Lieferantenwahl = vollständige EOQ-Parameter vor günstigstem Preis.
  */
 export async function generiereBestellvorschlaege(db: Db): Promise<Bestellvorschlag[]> {
-  const [artikel, bestand, offen] = await Promise.all([
+  const [artikel, bestand, offen, reserviert] = await Promise.all([
     db.artikel.findMany({
       where: { mindestbestand: { not: null }, bestandAktiv: true, gesperrt: false },
       select: {
@@ -78,6 +80,7 @@ export async function generiereBestellvorschlaege(db: Db): Promise<Bestellvorsch
     }),
     bestandJeArtikel(db),
     offeneBestellmengeJeArtikel(db),
+    reserviertJeArtikel(db),
   ]);
 
   const vorschlaege: Bestellvorschlag[] = [];
@@ -85,7 +88,10 @@ export async function generiereBestellvorschlaege(db: Db): Promise<Bestellvorsch
     const mindest = a.mindestbestand as number;
     const lager = bestand.get(a.artikelnummer) ?? 0;
     const bestellt = offen.get(a.artikelnummer) ?? 0;
-    const verfuegbar = lager + bestellt;
+    const res = reserviert.get(a.artikelnummer) ?? 0;
+    // Beschaffungssicht (KF3-33): Reservierungen sind fixierter Bedarf —
+    // ungekappt abziehen, damit reservierte Fehlmengen Vorschläge auslösen
+    const verfuegbar = lager - res + bestellt;
     if (verfuegbar >= mindest) continue;
 
     const kandidaten: VorschlagLieferant[] = a.lieferanten
@@ -110,6 +116,7 @@ export async function generiereBestellvorschlaege(db: Db): Promise<Bestellvorsch
       einheit: a.einheit,
       bestand: lager,
       offenBestellt: bestellt,
+      reserviert: res,
       verfuegbar,
       mindestbestand: mindest,
       vorschlagsmenge: vorschlagsmenge(mindest, verfuegbar, wahl?.eoq ?? null, wahl?.mindestmenge ?? 0),

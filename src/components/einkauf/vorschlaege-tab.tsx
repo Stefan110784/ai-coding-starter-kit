@@ -37,6 +37,7 @@ interface Vorschlag {
   einheit: string;
   bestand: number;
   offenBestellt: number;
+  reserviert: number;
   verfuegbar: number;
   mindestbestand: number;
   vorschlagsmenge: number;
@@ -190,6 +191,7 @@ export function VorschlaegeTab() {
                 {darfBestellen && <TableHead className="w-10" />}
                 <TableHead>Artikel</TableHead>
                 <TableHead className="text-right">Bestand</TableHead>
+                <TableHead className="text-right" title="Durch offene Aufträge reserviert (KF3-33)">Reserviert</TableHead>
                 <TableHead className="text-right">Offen bestellt</TableHead>
                 <TableHead className="text-right">Meldebestand</TableHead>
                 <TableHead className="text-right">Vorschlag</TableHead>
@@ -214,6 +216,7 @@ export function VorschlaegeTab() {
                     <div className="text-xs text-muted-foreground">{v.bezeichnung}</div>
                   </TableCell>
                   <TableCell className="text-right font-mono">{v.bestand}</TableCell>
+                  <TableCell className="text-right font-mono text-muted-foreground">{v.reserviert > 0 ? v.reserviert : "–"}</TableCell>
                   <TableCell className="text-right font-mono text-muted-foreground">{v.offenBestellt}</TableCell>
                   <TableCell className="text-right font-mono">{v.mindestbestand}</TableCell>
                   <TableCell className="text-right font-mono">{v.vorschlagsmenge}</TableCell>

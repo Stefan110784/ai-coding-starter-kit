@@ -200,6 +200,12 @@ export default function AuftraegePage() {
     const body = await res.json();
     if (!res.ok) { toast.error(body.error ?? "Fehler beim Erstellen"); return; }
     toast.success(`Auftrag ${body.nummer} erstellt`);
+    // Verfügbarkeitsprüfung beim Anlegen (KF3-33): Fehlteile sofort melden
+    if (body.material?.mangel) {
+      const fehlend = (body.material.mangelnd as Array<{ artikelnummer: string }>)
+        .map((m) => m.artikelnummer).join(", ");
+      toast.warning(`Material reicht nicht: ${fehlend}`, { duration: 8000 });
+    }
     setShowCreate(false);
     setForm({ nummer: "", bezeichnung: "", menge: "", kunde: "", liefertermin: "", abNummer: "", prioritaet: "0" });
     setCreateErrors({});

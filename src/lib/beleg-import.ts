@@ -21,6 +21,8 @@ import { auditEintrag, auditFeldDiff } from "@/lib/audit";
 import { BELEGE_DIR } from "@/lib/config";
 import * as storage from "@/lib/storage";
 import { parseLiefertermin } from "@/lib/liefertermin";
+import { nettobedarfFuerAuftrag } from "@/lib/stueckliste";
+import { reservierungAktualisieren } from "@/lib/reservierung";
 import {
   parseBeleg,
   produktgruppeAusPositionen,
@@ -165,6 +167,12 @@ export async function verarbeiteBeleg(
       ]);
       await tx.auftrag.update({ where: { id: vorhanden.id }, data: update });
       await setzePositionen(tx, vorhanden.id, positionen);
+      // Reservierung neu rechnen — NUR solange der Auftrag offen ist; danach
+      // sind Entnahmen gebucht und ein Refresh dürfte nicht erneut reservieren (KF3-33)
+      if (vorhanden.status === "offen") {
+        const bedarf = await nettobedarfFuerAuftrag(tx, vorhanden.id);
+        await reservierungAktualisieren(tx, vorhanden.id, bedarf, null);
+      }
       await entferneBelegAnhaenge(tx, vorhanden.id);
       await haengeBelegAn(tx, vorhanden.id, pdfName, pdfBytes);
       return "aktualisiert";
@@ -191,6 +199,9 @@ export async function verarbeiteBeleg(
       benutzerId: null,
     });
     await setzePositionen(tx, auftrag.id, positionen);
+    // Material reservieren (KF3-33) — Systemlauf, benutzerId null
+    const bedarf = await nettobedarfFuerAuftrag(tx, auftrag.id);
+    await reservierungAktualisieren(tx, auftrag.id, bedarf, null);
     await haengeBelegAn(tx, auftrag.id, pdfName, pdfBytes);
     return "angelegt";
   });
