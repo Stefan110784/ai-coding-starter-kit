@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireRecht, err, ok, handlePrismaError } from "@/lib/api-helpers";
 import { auditEintrag } from "@/lib/audit";
-import { gelieferteMengen, statusNachWareneingang } from "@/lib/bestellung";
+import { gelieferteMengen, statusNachWareneingang, MENGEN_EPS } from "@/lib/bestellung";
 
 /**
  * Wareneingang gegen Bestellung (Anforderung Kap. 3; KF3-30):
@@ -16,10 +16,10 @@ import { gelieferteMengen, statusNachWareneingang } from "@/lib/bestellung";
 const positionSchema = z
   .object({
     bestellPositionId: z.string().uuid(),
-    menge: z.number().positive(),
+    menge: z.number().positive().max(1_000_000),
     lagerortId: z.string().uuid(),
     pruefErgebnis: z.enum(["ok", "abweichend"]),
-    pruefBemerkung: z.string().trim().optional(),
+    pruefBemerkung: z.string().trim().max(2000).optional(),
   })
   .refine((p) => p.pruefErgebnis === "ok" || (p.pruefBemerkung && p.pruefBemerkung.length > 0), {
     message: "Bemerkung ist bei abweichender Eingangsprüfung Pflicht",
@@ -27,7 +27,15 @@ const positionSchema = z
   });
 
 const bodySchema = z.object({
-  positionen: z.array(positionSchema).min(1, "Mindestens eine Position"),
+  positionen: z
+    .array(positionSchema)
+    .min(1, "Mindestens eine Position")
+    .max(200)
+    // Duplikate würden den Überlieferungs-Check je Eintrag einzeln passieren
+    .refine(
+      (arr) => new Set(arr.map((p) => p.bestellPositionId)).size === arr.length,
+      "Doppelte Bestellposition im Request"
+    ),
   ueberlieferungBestaetigt: z.boolean().optional(),
 });
 
@@ -59,6 +67,11 @@ export async function POST(req: NextRequest, { params }: Params) {
       if (bestellung.status === "angefragt") {
         throw new Abbruch("Bestellung ist noch nicht bestellt (Status angefragt)");
       }
+      if (bestellung.status === "abgeschlossen") {
+        throw new Abbruch(
+          "Bestellung ist abgeschlossen — für Nachlieferungen zuerst den Status zurücksetzen"
+        );
+      }
 
       const posMap = new Map(bestellung.positionen.map((p) => [p.id, p]));
       for (const p of parsed.data.positionen) {
@@ -67,14 +80,26 @@ export async function POST(req: NextRequest, { params }: Params) {
         }
       }
 
-      // Soll-Ist-Abgleich: Überlieferung nur mit expliziter Bestätigung
+      // Soll-Ist-Abgleich: Überlieferung nur mit expliziter Bestätigung.
+      // Zuordnung über die Positions-ID — derselbe Artikel darf in mehreren
+      // Positionen einer Bestellung stehen.
       const bisher = await gelieferteMengen(tx, bestellung.positionen.map((p) => p.id));
-      const ueberliefert: Array<{ artikelnummer: string; bestellt: number; wuerde: number }> = [];
+      const ueberliefert: Array<{
+        bestellPositionId: string;
+        artikelnummer: string;
+        bestellt: number;
+        wuerde: number;
+      }> = [];
       for (const p of parsed.data.positionen) {
         const pos = posMap.get(p.bestellPositionId)!;
         const wuerde = (bisher.get(pos.id) ?? 0) + p.menge;
-        if (wuerde > pos.menge) {
-          ueberliefert.push({ artikelnummer: pos.artikelnummer, bestellt: pos.menge, wuerde });
+        if (wuerde > pos.menge + MENGEN_EPS) {
+          ueberliefert.push({
+            bestellPositionId: pos.id,
+            artikelnummer: pos.artikelnummer,
+            bestellt: pos.menge,
+            wuerde,
+          });
         }
       }
       if (ueberliefert.length > 0 && !parsed.data.ueberlieferungBestaetigt) {
@@ -86,7 +111,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       const bewegungen = [];
       for (const p of parsed.data.positionen) {
         const pos = posMap.get(p.bestellPositionId)!;
-        const ueber = ueberliefert.find((u) => u.artikelnummer === pos.artikelnummer);
+        const ueber = ueberliefert.find((u) => u.bestellPositionId === pos.id);
         const bewegung = await tx.materialbewegung.create({
           data: {
             artikelnummer: pos.artikelnummer,
@@ -163,7 +188,11 @@ export async function POST(req: NextRequest, { params }: Params) {
       });
 
       return { bewegungen: bewegungen.length, status: neuerStatus };
-    });
+    },
+    // Serialisierbar gegen parallele Buchungen auf dieselbe Bestellung: sonst
+    // lesen beide Transaktionen denselben „bisher“-Stand und passieren den
+    // Überlieferungs-Check gemeinsam (Konflikt → P2034 → 409, Client wiederholt).
+    { isolationLevel: "Serializable" });
 
     return ok(result, 201);
   } catch (e) {

@@ -12,6 +12,11 @@ Rein abgeleitet, **kein eigenes Schema** — die Messpunkte entstehen im Warenei
 
 `src/lib/lieferantenbewertung.ts` (reine Funktion `berechneBewertung` + Loader, 4 Testfälle) · `GET /api/einkauf/lieferantenbewertung` (Recht `lieferanten`) · Anzeige als Badge-Block (≥95 % grün, ≥80 % neutral, darunter rot) im Lieferanten-Detail.
 
+## Review-Fixes (2026-06-11, adversarialer Review)
+
+- Bewertungszeitraum auf **rollierende 12 Monate** begrenzt (`BEWERTUNG_MONATE`) — fachlich üblich und verhindert, dass der Loader unbegrenzt alle Bestellungen samt Bewegungen lädt; UI zeigt den Zeitraum an.
+- Preisverlauf-Button im Lieferanten-Detail ist für alle mit Recht `lieferanten` sichtbar (vorher nur Admin, obwohl die API das Recht genügen lässt).
+
 ## Akzeptanzkriterien
 
 - [x] Bewertung ohne manuelle Pflege, ausschließlich aus WE-Buchungen + Prüfungen

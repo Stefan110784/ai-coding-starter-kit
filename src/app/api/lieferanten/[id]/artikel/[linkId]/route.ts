@@ -25,22 +25,28 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const link = await prisma.artikelLieferant.findUnique({ where: { id: linkId } });
   if (!link || link.lieferantId !== id) return err("Verknüpfung nicht gefunden", 404);
 
+  // Auf die Decimal(10,4)-Genauigkeit der DB runden — sonst gilt z. B. 1.23456
+  // bei jedem PATCH erneut als „Änderung“ und erzeugt Duplikat-Historienzeilen
+  const neuerPreis =
+    parsed.data.einkaufspreis !== undefined
+      ? Math.round(parsed.data.einkaufspreis * 10000) / 10000
+      : undefined;
+
   try {
     const aktualisiert = await prisma.$transaction(async (tx) => {
       const neu = await tx.artikelLieferant.update({
         where: { id: linkId },
-        data: parsed.data,
+        data: { ...parsed.data, ...(neuerPreis !== undefined ? { einkaufspreis: neuerPreis } : {}) },
         include: { artikel: { select: { artikelnummer: true, bezeichnung: true, einheit: true } } },
       });
       // Preishistorie (KF3-31): Preisänderung hängt eine Zeile an
-      if (
-        parsed.data.einkaufspreis !== undefined &&
-        Number(link.einkaufspreis) !== parsed.data.einkaufspreis
-      ) {
+      if (neuerPreis !== undefined && Number(link.einkaufspreis) !== neuerPreis) {
         await tx.artikelLieferantPreis.create({
           data: {
             artikelLieferantId: linkId,
-            preis: parsed.data.einkaufspreis,
+            artikelnummer: link.artikelnummer,
+            lieferantId: link.lieferantId,
+            preis: neuerPreis,
             quelle: "manuell",
             benutzerId: auth.benutzer.id,
           },

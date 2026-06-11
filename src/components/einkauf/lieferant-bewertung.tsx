@@ -59,6 +59,7 @@ export function LieferantBewertungBlock({ lieferantId }: { lieferantId: string }
     <div className="flex flex-wrap items-center gap-4 rounded-md bg-muted/50 px-3 py-2">
       {prozentBadge(bewertung.termintreueProzent, bewertung.termintreueBasis, "Termintreue")}
       {prozentBadge(bewertung.qualitaetProzent, bewertung.qualitaetBasis, "Qualität")}
+      <span className="text-[10px] text-muted-foreground">rollierend 12 Monate</span>
     </div>
   );
 }

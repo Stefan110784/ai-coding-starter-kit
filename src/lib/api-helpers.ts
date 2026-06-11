@@ -52,6 +52,10 @@ export function handlePrismaError(e: unknown): NextResponse {
       return err("Wert bereits vergeben", 409);
     case "P2003": // Foreign key constraint
       return err("Datensatz wird noch verwendet und kann nicht gelöscht werden", 409);
+    case "P2020": // Wert außerhalb des Spaltentyps (z. B. Decimal-Überlauf)
+      return err("Wert außerhalb des gültigen Bereichs", 400);
+    case "P2034": // Serialisierungskonflikt (Transaktions-Isolation)
+      return err("Gleichzeitige Buchung erkannt — bitte erneut versuchen", 409);
     default:
       console.error("Unerwarteter DB-Fehler:", e);
       return err("Interner Fehler", 500);

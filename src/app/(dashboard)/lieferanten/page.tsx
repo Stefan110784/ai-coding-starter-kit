@@ -216,7 +216,7 @@ function LieferantDetail({ lieferantId, istAdmin }: { lieferantId: string; istAd
               <TableHead className="text-right">Preis</TableHead>
               <TableHead className="text-right">Min.</TableHead>
               <TableHead className="text-right">EOQ</TableHead>
-              {istAdmin && <TableHead className="w-10" />}
+              <TableHead className="w-10" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -235,19 +235,20 @@ function LieferantDetail({ lieferantId, istAdmin }: { lieferantId: string; istAd
                   <TableCell className="text-right font-mono text-xs">
                     {eoq != null ? `${eoq} Stk` : "–"}
                   </TableCell>
-                  {istAdmin && (
-                    <TableCell>
-                      <div className="flex">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="size-6"
-                          onClick={() => setHistorieLink(l)}
-                          aria-label="Preisverlauf"
-                          title="Preisverlauf"
-                        >
-                          <History className="size-3" />
-                        </Button>
+                  <TableCell>
+                    <div className="flex">
+                      {/* Verlauf lesen braucht nur das Recht „lieferanten“ (wie die API) */}
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-6"
+                        onClick={() => setHistorieLink(l)}
+                        aria-label="Preisverlauf"
+                        title="Preisverlauf"
+                      >
+                        <History className="size-3" />
+                      </Button>
+                      {istAdmin && (
                         <Button
                           size="icon"
                           variant="ghost"
@@ -257,9 +258,9 @@ function LieferantDetail({ lieferantId, istAdmin }: { lieferantId: string; istAd
                         >
                           <Trash2 className="size-3" />
                         </Button>
-                      </div>
-                    </TableCell>
-                  )}
+                      )}
+                    </div>
+                  </TableCell>
                 </TableRow>
               );
             })}

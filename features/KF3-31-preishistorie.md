@@ -13,7 +13,14 @@ Eigenes append-only Modell `ArtikelLieferantPreis` statt `gueltigAb` am Link —
 - **Lesen:** `GET /api/lieferanten/[id]/artikel/[linkId]` (Recht `lieferanten`), neueste zuerst.
 - **UI:** Verlauf-Icon je Artikel-Link im Lieferanten-Detail → Dialog mit Gültig-ab/Preis/Quelle/Benutzer.
 
+## Review-Fixes (2026-06-11, adversarialer Review)
+
+- **FK auf den Link entfernt** (Migration `…_preishistorie_entkoppelt`, Muster `AuditEvent`): die Historie wurde sonst beim Löschen der Verknüpfung per Cascade mitgelöscht — Widerspruch zum Append-only-/ISO-Anspruch. `artikelnummer` + `lieferantId` sind jetzt denormalisiert (Backfill enthalten), die Hooks schreiben sie mit.
+- Preisrundung auf die Decimal(10,4)-Genauigkeit VOR Vergleich und Speicherung — Eingaben wie 1.23456 erzeugten sonst bei jedem PATCH eine inhaltlich identische Duplikat-Zeile.
+- Artikel-Umbenennen zieht `BestellPosition` und die denormalisierten Verweise (Preishistorie, Prüfung, Abweichung, Material-Snapshot) jetzt mit um.
+
 ## Akzeptanzkriterien
 
 - [x] Jede Preisänderung erzeugt eine neue Zeile (Wer/Wann/Quelle), nichts wird überschrieben
 - [x] Bestandsdaten per Backfill als Startpunkt der Historie
+- [x] Historie überlebt das Löschen der Artikel-Lieferant-Verknüpfung

@@ -3,6 +3,8 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, requireRecht, err, ok, handlePrismaError } from "@/lib/api-helpers";
 import { bestandFuerArtikel } from "@/lib/bestand";
+import { auditEintrag } from "@/lib/audit";
+import { gelieferteMengen, statusNachWareneingang, MENGEN_EPS } from "@/lib/bestellung";
 
 // Manuell buchbare Arten wie V2 — Entnahmen/Fertigmeldungen entstehen nur
 // über die Status-Hooks des Auftrags bzw. /api/material/entnahme.
@@ -12,7 +14,10 @@ const createSchema = z.object({
   lagerortZielId: z.string().uuid().optional(),
   art: z.enum(["wareneingang", "korrektur", "umlagerung", "inventur"]),
   menge: z.number().refine((m) => m !== 0, "Menge darf nicht 0 sein"),
-  bemerkung: z.string().optional(),
+  bemerkung: z.string().max(2000).optional(),
+  // Korrektur einer WE-Fehlbuchung MIT Bestellbezug (KF3-30): hält die
+  // gelieferte Menge der Position und damit Status/Bewertung korrekt.
+  bestellPositionId: z.string().uuid().optional(),
   // Materialbewertung (KLR I): optionaler Einstandspreis + Kontierung.
   einstandspreis: z.number().nonnegative().optional(),
   kostenstelle: z.string().optional(),
@@ -57,7 +62,10 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) return err("Ungültige Eingabe");
-  const { artikelnummer, lagerortId, lagerortZielId, art, menge, bemerkung, einstandspreis, kostenstelle, kostentraeger } = parsed.data;
+  const { artikelnummer, lagerortId, lagerortZielId, art, menge, bemerkung, bestellPositionId, einstandspreis, kostenstelle, kostentraeger } = parsed.data;
+  if (bestellPositionId && art !== "korrektur") {
+    return err("Bestellbezug ist nur bei Korrektur-Buchungen erlaubt (Wareneingänge über die Bestellung buchen)");
+  }
 
   const artikel = await prisma.artikel.findUnique({ where: { artikelnummer } });
   if (!artikel) return err("Artikel nicht gefunden", 404);
@@ -87,6 +95,57 @@ export async function POST(req: NextRequest) {
           },
         }),
       ]);
+    } else if (bestellPositionId) {
+      // Korrektur mit Bestellbezug: Position prüfen, buchen und den
+      // Bestellstatus aus den neuen Liefermengen ableiten — eine Transaktion.
+      await prisma.$transaction(async (tx) => {
+        const pos = await tx.bestellPosition.findUnique({
+          where: { id: bestellPositionId },
+          include: { bestellung: { include: { positionen: { select: { id: true, menge: true } } } } },
+        });
+        if (!pos) throw new BestellPositionFehlt();
+        if (pos.artikelnummer !== artikelnummer) throw new ArtikelPasstNicht();
+
+        await tx.materialbewegung.create({
+          data: {
+            artikelnummer, lagerortId, art, menge,
+            benutzerId: auth.benutzer.id, bemerkung, bestellPositionId,
+            einstandspreis, kostenstelle, kostentraeger,
+          },
+        });
+
+        const best = pos.bestellung;
+        if (["bestellt", "teilgeliefert", "abgeschlossen"].includes(best.status)) {
+          const geliefert = await gelieferteMengen(tx, best.positionen.map((p) => p.id));
+          const summe = [...geliefert.values()].reduce((s, m) => s + m, 0);
+          // Volle Rücknahme → zurück auf bestellt, sonst Automatik wie im WE
+          const neuerStatus =
+            summe <= MENGEN_EPS
+              ? "bestellt"
+              : statusNachWareneingang(
+                  best.positionen.map((p) => ({ menge: p.menge, geliefert: geliefert.get(p.id) ?? 0 }))
+                );
+          if (neuerStatus !== best.status) {
+            await tx.bestellung.update({
+              where: { id: best.id },
+              data: {
+                status: neuerStatus,
+                abgeschlossenAm: neuerStatus === "abgeschlossen" ? new Date() : null,
+              },
+            });
+            await auditEintrag(tx, {
+              entitaet: "bestellung",
+              entitaetId: best.id,
+              aktion: "statuswechsel",
+              feld: "status",
+              altWert: best.status,
+              neuWert: neuerStatus,
+              kontext: { nr: best.nr, quelle: "korrektur" },
+              benutzerId: auth.benutzer.id,
+            });
+          }
+        }
+      }, { isolationLevel: "Serializable" });
     } else {
       // Wareneingang immer positiv; Korrektur/Inventur dürfen negativ sein.
       await prisma.materialbewegung.create({
@@ -99,8 +158,15 @@ export async function POST(req: NextRequest) {
       });
     }
   } catch (e) {
+    if (e instanceof BestellPositionFehlt) return err("Bestellposition nicht gefunden", 404);
+    if (e instanceof ArtikelPasstNicht) {
+      return err("Artikel der Buchung passt nicht zur Bestellposition");
+    }
     return handlePrismaError(e);
   }
 
   return ok({ ok: true, bestand: await bestandFuerArtikel(prisma, artikelnummer) }, 201);
 }
+
+class BestellPositionFehlt extends Error {}
+class ArtikelPasstNicht extends Error {}

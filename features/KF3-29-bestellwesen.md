@@ -10,6 +10,15 @@
 - **Rechte:** neue Gruppe `einkauf` (Seite) + Funktion `einkauf.bestellen`; Rollen-Standard: kommissionierung sieht Einkauf, Bestellen bleibt Admin.
 - **UI:** Seite `/einkauf` (Sidebar) mit Tabs Bestellvorschläge | Bestellungen. Vorschläge: editierbare Menge, Begründungs-Dialog bei EOQ-Übersteuerung, eine Bestellung je Lieferant. Bestellungen: Ampel, Filter offen/alle, Detail-Sheet mit Positionen (bestellt/geliefert/Rest/Termin).
 
+## Review-Fixes (2026-06-11, adversarialer Review)
+
+- `zugesagtTermin` jetzt in der UI pflegbar: Datumsfeld beim Bestellen (Vorschläge-Tab, Kopf) + editierbar im Detail-Sheet — vorher waren Ampel und Termintreue ohne API-Direktaufruf tot.
+- Pflicht-Bemerkung bei Kurzschluss/Storno prüft die EFFEKTIV resultierende Bemerkung (`bemerkung:null` rutschte durch und löschte zugleich die alte).
+- Ampel ist bei `abgeschlossen`/`storniert` immer grün (Kurzschluss mit Restmenge blieb sonst dauerhaft rot).
+- Teilfehlschlag über mehrere Lieferanten: erfolgreiche Bestellungen fliegen sofort aus der Auswahl, Fehler werden je Lieferant gesammelt — kein Doppelbestellungs-Risiko durch erneutes Klicken.
+- `preis: 0` ist bestellbar (Beistellware; Stammdaten erlaubten es schon); Schema-Obergrenzen (Array ≤200, Menge ≤1 Mio, Preis ≤ Decimal(10,4)); Decimal-Überlauf → 400 statt 500 (`P2020` in `handlePrismaError`).
+- Hinweis Datenmodell-Divergenz (bewusst): „unter Mindest“ auf der Material-Seite ist die reine **Lagersicht**, die Vorschlagsliste rechnet **verfügbar = Bestand + offen bestellt** (Beschaffungssicht) — ein Artikel kann daher „unter Mindest“ sein, ohne in den Vorschlägen zu erscheinen.
+
 ## Akzeptanzkriterien
 
 - [x] Bestellvorschlag aus Meldebestand+EOQ, Übersteuerung nur mit Begründung

@@ -10,7 +10,7 @@ import { effektiverTermin, gelieferteMengen, terminAmpel } from "@/lib/bestellun
 const updateSchema = z.object({
   status: z.enum(["angefragt", "bestellt", "teilgeliefert", "abgeschlossen", "storniert"]).optional(),
   zugesagtTermin: z.string().datetime().optional().nullable(),
-  bemerkung: z.string().trim().optional().nullable(),
+  bemerkung: z.string().trim().max(2000).optional().nullable(),
 });
 
 type Params = { params: Promise<{ id: string }> };
@@ -48,7 +48,10 @@ export async function GET(req: NextRequest, { params }: Params) {
       geliefert: g,
       rest,
       effektiverTermin: termin,
-      ampel: b.status === "storniert" ? "gruen" : terminAmpel(termin, rest, heute),
+      // Beendete Bestellungen (auch Kurzschluss mit Restmenge) sind nicht überfällig
+      ampel: ["storniert", "abgeschlossen"].includes(b.status)
+        ? "gruen"
+        : terminAmpel(termin, rest, heute),
     };
   });
 
@@ -83,7 +86,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         if (neuerStatus === "abgeschlossen" || neuerStatus === "storniert") {
           const geliefert = await gelieferteMengen(tx, alt.positionen.map((p) => p.id));
           const rest = alt.positionen.some((p) => (geliefert.get(p.id) ?? 0) < p.menge);
-          if (rest && !(felder.bemerkung ?? alt.bemerkung)) {
+          // Die EFFEKTIV resultierende Bemerkung prüfen: explizites
+          // bemerkung:null würde sonst durchrutschen UND die alte löschen
+          const bemerkungNachher =
+            felder.bemerkung !== undefined ? felder.bemerkung : alt.bemerkung;
+          if (rest && !bemerkungNachher) {
             throw new BemerkungFehlt();
           }
           if (neuerStatus === "abgeschlossen") data.abgeschlossenAm = new Date();

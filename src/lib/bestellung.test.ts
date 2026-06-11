@@ -49,6 +49,9 @@ describe("statusNachWareneingang", () => {
       ])
     ).toBe("teilgeliefert");
   });
+  it("Float-Toleranz: 0.1 + 0.2 gilt als voll geliefert bei Soll 0.3", () => {
+    expect(statusNachWareneingang([{ menge: 0.3, geliefert: 0.1 + 0.2 }])).toBe("abgeschlossen");
+  });
 });
 
 describe("vorschlagsmenge", () => {

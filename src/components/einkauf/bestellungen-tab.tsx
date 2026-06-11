@@ -7,6 +7,7 @@ import { PackageCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Sheet,
@@ -113,6 +114,23 @@ export function BestellungenTab() {
     neuLaden();
   }
 
+  async function setTermin(b: BestellungRow, datum: string) {
+    const res = await fetch(`/api/einkauf/bestellungen/${b.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        zugesagtTermin: datum ? new Date(`${datum}T12:00:00`).toISOString() : null,
+      }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast.error(body.error ?? "Termin konnte nicht gespeichert werden");
+      return;
+    }
+    toast.success(`B-${b.nr}: Termin ${datum ? new Date(datum).toLocaleDateString("de-DE") : "entfernt"}`);
+    neuLaden();
+  }
+
   if (isLoading) {
     return <div className="space-y-2">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>;
   }
@@ -176,7 +194,7 @@ export function BestellungenTab() {
       )}
 
       {/* ── Detail-Sheet ─────────────────────────────────────── */}
-      <Sheet open={!!detail} onOpenChange={(o) => { if (!o) setDetailId(null); }}>
+      <Sheet open={!!detail} onOpenChange={(o) => { if (!o) { setDetailId(null); setWeOffen(false); } }}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-3xl">
           {detail && (
             <>
@@ -203,7 +221,20 @@ export function BestellungenTab() {
                 ) : (
                   <Badge variant="secondary">{STATUS_LABEL[detail.status]}</Badge>
                 )}
-                <span className="text-sm text-muted-foreground">Zugesagt: {fmtTermin(detail.zugesagtTermin)}</span>
+                {darfBestellen ? (
+                  <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                    Zugesagt:
+                    <Input
+                      type="date"
+                      className="h-8 w-36"
+                      value={detail.zugesagtTermin?.slice(0, 10) ?? ""}
+                      onChange={(e) => setTermin(detail, e.target.value)}
+                      aria-label="Zugesagter Termin"
+                    />
+                  </label>
+                ) : (
+                  <span className="text-sm text-muted-foreground">Zugesagt: {fmtTermin(detail.zugesagtTermin)}</span>
+                )}
                 <span className="flex-1" />
                 {darfBuchen && ["bestellt", "teilgeliefert"].includes(detail.status) && (
                   <Button size="sm" onClick={() => setWeOffen(true)}>
@@ -255,6 +286,9 @@ export function BestellungenTab() {
       </Sheet>
 
       <WareneingangDialog
+        // Remount je Bestellung: Zeilen-/Lagerort-State darf nicht in den
+        // Dialog einer anderen Bestellung „mitwandern“
+        key={detail?.id ?? "keine"}
         bestellung={detail}
         open={weOffen && !!detail}
         onOpenChange={setWeOffen}

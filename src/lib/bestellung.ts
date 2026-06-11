@@ -11,6 +11,13 @@ import type { Db } from "@/lib/bestand";
 
 export type AmpelStufe = "rot" | "gelb" | "gruen";
 
+/**
+ * Toleranz für Float-Mengenvergleiche: Materialbewegung.menge ist Float —
+ * Teillieferungen wie 0.1 + 0.2 dürfen weder eine falsche Überlieferung
+ * melden noch den Status auf teilgeliefert hängen lassen.
+ */
+export const MENGEN_EPS = 1e-9;
+
 /** Tage Vorwarnung, bevor ein zugesagter Termin als kritisch (gelb) gilt. */
 const VORWARN_TAGE = 3;
 
@@ -56,7 +63,7 @@ export function terminAmpel(
 export function statusNachWareneingang(
   positionen: Array<{ menge: number; geliefert: number }>
 ): "teilgeliefert" | "abgeschlossen" {
-  const alleVoll = positionen.every((p) => p.geliefert >= p.menge);
+  const alleVoll = positionen.every((p) => p.geliefert >= p.menge - MENGEN_EPS);
   return alleVoll ? "abgeschlossen" : "teilgeliefert";
 }
 
@@ -95,7 +102,7 @@ export async function offeneBestellmengeJeArtikel(db: Db): Promise<Map<string, n
   const offen = new Map<string, number>();
   for (const p of positionen) {
     const rest = Math.max(0, p.menge - (geliefert.get(p.id) ?? 0));
-    if (rest > 0) offen.set(p.artikelnummer, (offen.get(p.artikelnummer) ?? 0) + rest);
+    if (rest > MENGEN_EPS) offen.set(p.artikelnummer, (offen.get(p.artikelnummer) ?? 0) + rest);
   }
   return offen;
 }

@@ -67,15 +67,21 @@ export interface LieferantBewertung extends Bewertung {
   name: string;
 }
 
+/** Bewertungszeitraum: rollierende 12 Monate (begrenzt zugleich die Datenmenge). */
+export const BEWERTUNG_MONATE = 12;
+
 /** Bewertung je aktivem Lieferanten aus Bestellungen, Wareneingängen und Prüfungen. */
 export async function bewertungJeLieferant(db: Db): Promise<LieferantBewertung[]> {
+  const fensterBeginn = new Date();
+  fensterBeginn.setMonth(fensterBeginn.getMonth() - BEWERTUNG_MONATE);
+
   const lieferanten = await db.lieferant.findMany({
     where: { aktiv: true },
     select: {
       id: true,
       name: true,
       bestellungen: {
-        where: { status: { not: "storniert" } },
+        where: { status: { not: "storniert" }, erstelltAm: { gte: fensterBeginn } },
         select: {
           zugesagtTermin: true,
           positionen: {

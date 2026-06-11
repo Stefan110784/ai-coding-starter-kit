@@ -123,7 +123,9 @@ export function WareneingangDialog({ bestellung, open, onOpenChange, onDone }: W
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    // Beim Schließen Zeilen-State verwerfen — ein erneutes Öffnen startet
+    // wieder mit den aktuellen Restmengen (zusätzlich remountet der Parent per key)
+    <Dialog open={open} onOpenChange={(o) => { if (!o) setZeilen({}); onOpenChange(o); }}>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>Wareneingang B-{bestellung?.nr}</DialogTitle>

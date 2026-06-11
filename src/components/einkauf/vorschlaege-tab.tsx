@@ -51,6 +51,7 @@ export function VorschlaegeTab() {
 
   const [gewaehlt, setGewaehlt] = useState<Set<string>>(new Set());
   const [mengen, setMengen] = useState<Record<string, string>>({});
+  const [termin, setTermin] = useState(""); // zugesagter Termin (Kopf, optional)
   const [grundDialog, setGrundDialog] = useState(false);
   const [grund, setGrund] = useState("");
   const [laeuft, setLaeuft] = useState(false);
@@ -89,12 +90,17 @@ export function VorschlaegeTab() {
         const key = v.lieferant!.lieferantId;
         gruppen.set(key, [...(gruppen.get(key) ?? []), v]);
       }
+      // Teilfehlschläge dürfen kein Doppelbestellungs-Risiko erzeugen:
+      // erfolgreiche Lieferanten sofort aus der Auswahl nehmen, Fehler sammeln.
+      const fehler: string[] = [];
+      let erfolgreich = 0;
       for (const [lieferantId, liste] of gruppen) {
         const res = await fetch("/api/einkauf/bestellungen", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             lieferantId,
+            ...(termin ? { zugesagtTermin: new Date(`${termin}T12:00:00`).toISOString() } : {}),
             positionen: liste.map((v) => ({
               artikelnummer: v.artikelnummer,
               menge: effektiveMenge(v),
@@ -106,16 +112,27 @@ export function VorschlaegeTab() {
         });
         const body = await res.json().catch(() => ({}));
         if (!res.ok) {
-          toast.error(body.error ?? "Bestellung fehlgeschlagen");
-          return;
+          fehler.push(`${liste[0].lieferant!.name}: ${body.error ?? "Bestellung fehlgeschlagen"}`);
+          continue;
         }
+        erfolgreich++;
+        setGewaehlt((s) => {
+          const neu = new Set(s);
+          liste.forEach((v) => neu.delete(v.artikelnummer));
+          return neu;
+        });
         toast.success(`Bestellung B-${body.nr} (${liste[0].lieferant!.name}) angelegt`);
       }
-      setGewaehlt(new Set());
-      setMengen({});
-      setGrund("");
-      mutate("/api/einkauf/vorschlaege");
-      mutate((key) => typeof key === "string" && key.startsWith("/api/einkauf/bestellungen"));
+      if (fehler.length > 0) toast.error(fehler.join(" · "));
+      if (erfolgreich > 0) {
+        mutate("/api/einkauf/vorschlaege");
+        mutate((key) => typeof key === "string" && key.startsWith("/api/einkauf/bestellungen"));
+      }
+      if (fehler.length === 0) {
+        setMengen({});
+        setGrund("");
+        setTermin("");
+      }
     } finally {
       setLaeuft(false);
       setGrundDialog(false);
@@ -143,13 +160,25 @@ export function VorschlaegeTab() {
           {vorschlaege.length} Artikel unter Meldebestand · Vorschlagsmenge = max(EOQ, Mindestmenge, Lücke)
         </p>
         {darfBestellen && (
-          <Button
-            disabled={ausgewaehlte.length === 0 || laeuft}
-            onClick={() => (brauchtGrund ? setGrundDialog(true) : bestellen())}
-          >
-            <ShoppingCart className="size-4 mr-2" />
-            Bestellung erzeugen ({ausgewaehlte.length})
-          </Button>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="vorschlag-termin" className="text-xs text-muted-foreground">
+              Zugesagter Termin
+            </Label>
+            <Input
+              id="vorschlag-termin"
+              type="date"
+              className="h-9 w-36"
+              value={termin}
+              onChange={(e) => setTermin(e.target.value)}
+            />
+            <Button
+              disabled={ausgewaehlte.length === 0 || laeuft}
+              onClick={() => (brauchtGrund ? setGrundDialog(true) : bestellen())}
+            >
+              <ShoppingCart className="size-4 mr-2" />
+              Bestellung erzeugen ({ausgewaehlte.length})
+            </Button>
+          </div>
         )}
       </div>
 

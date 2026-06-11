@@ -8,11 +8,12 @@ import { effektiverTermin, gelieferteMengen, terminAmpel } from "@/lib/bestellun
 /** Bestellungen (Anforderung Kap. 3; KF3-29). */
 
 const positionSchema = z.object({
-  artikelnummer: z.string().min(1),
-  menge: z.number().positive(),
-  preis: z.number().positive().optional(),
-  vorschlagsmenge: z.number().positive().optional(),
-  uebersteuerungsGrund: z.string().trim().optional(),
+  artikelnummer: z.string().min(1).max(100),
+  menge: z.number().positive().max(1_000_000),
+  // min(0): Stammdaten erlauben 0-€-Preise (z. B. Beistellware); max = Decimal(10,4)
+  preis: z.number().min(0).max(999_999.9999).optional(),
+  vorschlagsmenge: z.number().positive().max(1_000_000).optional(),
+  uebersteuerungsGrund: z.string().trim().max(2000).optional(),
   zugesagtTermin: z.string().datetime().optional(),
   auftragId: z.string().uuid().optional(),
 });
@@ -21,8 +22,8 @@ const createSchema = z.object({
   lieferantId: z.string().uuid(),
   status: z.enum(["angefragt", "bestellt"]).default("angefragt"),
   zugesagtTermin: z.string().datetime().optional(),
-  bemerkung: z.string().trim().optional(),
-  positionen: z.array(positionSchema).min(1, "Mindestens eine Position"),
+  bemerkung: z.string().trim().max(2000).optional(),
+  positionen: z.array(positionSchema).min(1, "Mindestens eine Position").max(200),
 });
 
 const OFFENE_STATUS = ["angefragt", "bestellt", "teilgeliefert"] as const;
@@ -62,7 +63,10 @@ export async function GET(req: NextRequest) {
         geliefert: gelieferteMenge,
         rest,
         effektiverTermin: termin,
-        ampel: b.status === "storniert" ? "gruen" : terminAmpel(termin, rest, heute),
+        // Beendete Bestellungen (auch Kurzschluss mit Restmenge) sind nicht überfällig
+        ampel: ["storniert", "abgeschlossen"].includes(b.status)
+          ? "gruen"
+          : terminAmpel(termin, rest, heute),
       };
     });
     const stufen = positionen.map((p) => p.ampel);

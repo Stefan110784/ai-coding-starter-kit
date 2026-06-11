@@ -33,16 +33,20 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (!artikel) return err("Artikel nicht gefunden", 404);
 
   try {
+    // Rundung auf die Decimal(10,4)-Genauigkeit der DB (wie PATCH [linkId])
+    const preis = Math.round(parsed.data.einkaufspreis * 10000) / 10000;
     const link = await prisma.$transaction(async (tx) => {
       const angelegt = await tx.artikelLieferant.create({
-        data: { ...parsed.data, lieferantId: id },
+        data: { ...parsed.data, einkaufspreis: preis, lieferantId: id },
         include: { artikel: { select: { artikelnummer: true, bezeichnung: true, einheit: true } } },
       });
       // Preishistorie (KF3-31): initialer Preis als erste Historien-Zeile
       await tx.artikelLieferantPreis.create({
         data: {
           artikelLieferantId: angelegt.id,
-          preis: parsed.data.einkaufspreis,
+          artikelnummer: angelegt.artikelnummer,
+          lieferantId: id,
+          preis,
           quelle: "manuell",
           benutzerId: auth.benutzer.id,
         },

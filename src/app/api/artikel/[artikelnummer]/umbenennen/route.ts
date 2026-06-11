@@ -42,6 +42,13 @@ export async function POST(req: NextRequest, { params }: Params) {
       await tx.inventurZaehlung.updateMany({ where: { artikelnummer: alt }, data: { artikelnummer: neu } });
       await tx.kommissionierCheck.updateMany({ where: { artikelnummer: alt }, data: { artikelnummer: neu } });
       await tx.artikelLieferant.updateMany({ where: { artikelnummer: alt }, data: { artikelnummer: neu } });
+      // FK aus Paket 2 (Bestellwesen) …
+      await tx.bestellPosition.updateMany({ where: { artikelnummer: alt }, data: { artikelnummer: neu } });
+      // … sowie FK-lose, denormalisierte Verweise (konsistent halten)
+      await tx.artikelLieferantPreis.updateMany({ where: { artikelnummer: alt }, data: { artikelnummer: neu } });
+      await tx.pruefung.updateMany({ where: { artikelnummer: alt }, data: { artikelnummer: neu } });
+      await tx.abweichung.updateMany({ where: { artikelnummer: alt }, data: { artikelnummer: neu } });
+      await tx.auftragMaterialSnapshot.updateMany({ where: { artikelnummer: alt }, data: { artikelnummer: neu } });
       // 3. Alte (jetzt referenzlose) Nummer löschen
       await tx.artikel.delete({ where: { artikelnummer: alt } });
       return tx.artikel.findUnique({ where: { artikelnummer: neu }, include: { lagerort: true } });
