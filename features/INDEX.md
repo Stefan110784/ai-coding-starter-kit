@@ -44,8 +44,8 @@
 | KF3-26 | **Endprüfung** – Pruefung-Modell + hartes Gate vor Auftragsabschluss (ISO 8.6) | In Progress | [Spec](KF3-26-endpruefung.md) | 2026-06-11 |
 | KF3-27 | **Abweichung/Nacharbeit** – Minimal-CAPA mit Ursache/Maßnahme + Grund-Katalog (ISO 8.7, 10.2) | In Progress | [Spec](KF3-27-abweichung-capa.md) | 2026-06-11 |
 | KF3-28 | **Material-Snapshot am Auftrag** – eingefrorene Stücklisten-Auflösung bei Kommissionierung (ISO 7.5) | In Progress | [Spec](KF3-28-material-snapshot.md) | 2026-06-11 |
-| KF3-29 | **Bestellwesen** – Bestellung/Position, Bestellvorschläge (EOQ+Meldebestand), Überfälligkeits-Ampel | Roadmap | – | 2026-06-11 |
-| KF3-30 | **Wareneingang gegen Bestellung** – Soll-Ist-Abgleich, Teillieferung, Eingangsprüfung, Scanner | Roadmap | – | 2026-06-11 |
+| KF3-29 | **Bestellwesen** – Bestellung/Position, Bestellvorschläge (EOQ+Meldebestand), Überfälligkeits-Ampel | In Progress | [Spec](KF3-29-bestellwesen.md) | 2026-06-11 |
+| KF3-30 | **Wareneingang gegen Bestellung** – Soll-Ist-Abgleich, Teillieferung, Eingangsprüfung, Scanner | In Progress | [Spec](KF3-30-wareneingang-gegen-bestellung.md) | 2026-06-11 |
 | KF3-31 | **Preishistorie** – ArtikelLieferantPreis append-only, Quelle manuell/Bestellung | In Progress | [Spec](KF3-31-preishistorie.md) | 2026-06-11 |
 | KF3-32 | **Lieferantenbewertung** – Termintreue + Qualität, rein abgeleitet (ISO 8.4) | In Progress | [Spec](KF3-32-lieferantenbewertung.md) | 2026-06-11 |
 | KF3-33 | **Materialreservierung** – Reservierung je Auftrag + Verfügbarkeitsprüfung beim Anlegen | Roadmap | – | 2026-06-11 |
@@ -55,10 +55,11 @@
 | KF3-37 | **Kundenauftrag-Modell** – Kunde + Kundenauftrag, Ende-zu-Ende-Liefertreue | Roadmap | – | 2026-06-11 |
 | KF3-38 | **CAS-Sync Phase 1 (lesend)** – Staging, GUID-Mapping, Soft-Delete, Sync-Job (extern: API-Klärung) | Roadmap | – | 2026-06-11 |
 | KF3-39 | **CAS-Rückkanal** – Status + bestätigter Termin zurück in die CAS-Kundenakte | Roadmap | – | 2026-06-11 |
+| KF3-40 | **Bedarfsprognose** – exponentielle Glättung (1. Ordnung, α≈0,2, Monatsperioden) aus Materialbewegungen; nur Entscheidungshilfe: Anzeige im Bestellvorschlag + „als Jahresbedarf übernehmen“; nur bei regelmäßigem Verbrauch, sonst „keine Prognose“ | Roadmap | – | 2026-06-11 |
 
 <!-- Add features above this line -->
 
-## Next Available ID: KF3-40
+## Next Available ID: KF3-41
 
 ## Konventionen
 
