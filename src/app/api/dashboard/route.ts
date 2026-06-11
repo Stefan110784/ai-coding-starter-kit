@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, ok } from "@/lib/api-helpers";
+import { statusampel, type AmpelFarbe } from "@/lib/statusampel";
 
 export async function GET(req: NextRequest) {
   const auth = await requireAuth(req);
@@ -111,7 +112,32 @@ export async function GET(req: NextRequest) {
     nacharbeit: qualitaet7Tage._sum.nacharbeit ?? 0,
   };
 
+  // Statusampel über alle aktiven Aufträge (Anforderung Kap. 2; KF3-24)
+  const aktiveAuftraege = await prisma.auftrag.findMany({
+    where: { status: { not: "abgeschlossen" } },
+    select: {
+      id: true,
+      nummer: true,
+      bezeichnung: true,
+      status: true,
+      promisedDate: true,
+      stalledMissingParts: true,
+      reworkRequired: true,
+    },
+  });
+  const ampelZaehler: Record<AmpelFarbe, number> = { rot: 0, gelb: 0, gruen: 0, grau: 0 };
+  const ampelKritisch: Array<{ id: string; nummer: string; bezeichnung: string; farbe: AmpelFarbe; grund: string }> = [];
+  for (const a of aktiveAuftraege) {
+    const ergebnis = statusampel(a, jetzt);
+    ampelZaehler[ergebnis.farbe]++;
+    if (ergebnis.farbe === "rot" || ergebnis.farbe === "gelb") {
+      ampelKritisch.push({ id: a.id, nummer: a.nummer, bezeichnung: a.bezeichnung, ...ergebnis });
+    }
+  }
+  ampelKritisch.sort((a, b) => (a.farbe === b.farbe ? a.nummer.localeCompare(b.nummer) : a.farbe === "rot" ? -1 : 1));
+
   return ok({
+    ampel: { zaehler: ampelZaehler, kritisch: ampelKritisch.slice(0, 12) },
     angemeldete,
     auftraegeNachStatus: auftraegeNachStatus.map((a) => ({
       status: a.status,

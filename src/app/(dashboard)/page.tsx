@@ -102,6 +102,11 @@ export default function DashboardPage() {
   const statusData: Array<{ status: string; anzahl: number }> = data?.auftraegeNachStatus ?? [];
   const stundenData: Array<{ name: string; kuerzel: string; stunden: number }> = data?.stundenProMitarbeiter ?? [];
 
+  const ampel: {
+    zaehler: { rot: number; gelb: number; gruen: number };
+    kritisch: Array<{ id: string; nummer: string; bezeichnung: string; farbe: "rot" | "gelb"; grund: string }>;
+  } = data?.ampel ?? { zaehler: { rot: 0, gelb: 0, gruen: 0 }, kritisch: [] };
+
   const q7 = data?.qualitaet7Tage ?? { gut: 0, ausschuss: 0, nacharbeit: 0 };
   const qGesamt = q7.gut + q7.ausschuss + q7.nacharbeit;
   const ausschussQ = qGesamt > 0 ? Math.round((q7.ausschuss / qGesamt) * 1000) / 10 : null;
@@ -148,6 +153,48 @@ export default function DashboardPage() {
           color={ausschussQ !== null && ausschussQ > 5 ? "text-red-500" : "text-muted-foreground"}
         />
       </div>
+
+      {/* Statusampel über alle aktiven Aufträge (KF3-24) */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center justify-between">
+            <span>Statusampel</span>
+            <span className="flex items-center gap-3 text-sm font-normal">
+              <span className="flex items-center gap-1">
+                <span className="size-2.5 rounded-full bg-red-500" /> {ampel.zaehler.rot}
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="size-2.5 rounded-full bg-amber-400" /> {ampel.zaehler.gelb}
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="size-2.5 rounded-full bg-green-500" /> {ampel.zaehler.gruen}
+              </span>
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {ampel.kritisch.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-1 text-center">
+              Alle aktiven Aufträge im Plan
+            </p>
+          ) : (
+            <div className="divide-y">
+              {ampel.kritisch.map((a) => (
+                <div key={a.id} className="flex items-center justify-between gap-3 py-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span
+                      className={`size-2.5 shrink-0 rounded-full ${a.farbe === "rot" ? "bg-red-500" : "bg-amber-400"}`}
+                    />
+                    <span className="font-mono text-sm font-medium">{a.nummer}</span>
+                    <span className="text-xs text-muted-foreground truncate">{a.bezeichnung}</span>
+                  </div>
+                  <Badge variant="outline" className="text-xs shrink-0">{a.grund}</Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Aktuell angemeldete Mitarbeiter */}
       <Card>

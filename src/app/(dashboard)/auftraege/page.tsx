@@ -45,6 +45,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { BarcodeScanner } from "@/components/barcode-scanner";
 import { PrioritaetBadge, PRIORITAET_LABELS } from "@/components/prioritaet-badge";
+import { StatusampelPunkt } from "@/components/statusampel-punkt";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { KommissionierDialog } from "@/components/material/kommissionier-dialog";
 import { MaterialbedarfBlock } from "@/components/material/materialbedarf-block";
@@ -84,6 +85,9 @@ type Auftrag = {
   abNummer?: string | null;
   notiz?: string | null;
   prioritaet?: number;
+  promisedDate?: string | null;
+  stalledMissingParts?: boolean;
+  reworkRequired?: boolean;
   status: string;
   start?: string | null;
   ende?: string | null;
@@ -311,7 +315,12 @@ export default function AuftraegePage() {
                       className="cursor-pointer hover:bg-muted/50"
                       onClick={() => openDetail(a.id)}
                     >
-                      <TableCell className="font-mono font-medium">{a.nummer}</TableCell>
+                      <TableCell className="font-mono font-medium">
+                        <span className="flex items-center gap-2">
+                          <StatusampelPunkt auftrag={a} />
+                          {a.nummer}
+                        </span>
+                      </TableCell>
                       <TableCell>{a.bezeichnung}</TableCell>
                       <TableCell className="text-right">{a.menge}</TableCell>
                       <TableCell>{a.kunde ?? "–"}</TableCell>
