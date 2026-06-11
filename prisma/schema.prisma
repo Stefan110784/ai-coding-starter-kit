@@ -1,0 +1,710 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Benutzerrolle {
+  admin
+  kommissionierung
+  mitarbeiter
+}
+
+enum Auftragsstatus {
+  offen
+  kommissioniert
+  laeuft
+  pausiert
+  abgeschlossen
+}
+
+enum Materialbewegungsart {
+  wareneingang
+  entnahme
+  umlagerung
+  inventur
+  korrektur
+  fertigmeldung
+}
+
+enum Inventurstatus {
+  erfasst
+  gebucht
+  verworfen
+}
+
+enum Zeitbeendigungsgrund {
+  normal
+  pause
+  nachtrag
+}
+
+// ─── Auth & Benutzer ──────────────────────────────────────────────────────────
+
+model Benutzer {
+  id                  String        @id @default(uuid())
+  username            String        @unique
+  name                String?
+  rolle               Benutzerrolle
+  passwortHash        String        @map("passwort_hash")
+  aktiv               Boolean       @default(true)
+  mussPasswortAendern Boolean       @default(false) @map("muss_passwort_aendern")
+  rechte              Json?
+  erstelltAm          DateTime      @default(now()) @map("erstellt_am")
+
+  sessions             Session[]
+  mitarbeiter          Mitarbeiter?
+  materialbewegungen   Materialbewegung[]
+  inventurErfasst      InventurZaehlung[] @relation("ErfasstVon")
+  inventurGebucht      InventurZaehlung[] @relation("GebuchtVon")
+  kommissionierChecks  KommissionierCheck[]
+  vergebeneZuweisungen AuftragMitarbeiter[]
+  auditEvents          AuditEvent[]
+  erstellteAuftraege   Auftrag[]
+  hochgeladeneDateien  Datei[]
+  qualitaetErfasst     Qualitaet[]
+  pruefungen           Pruefung[]
+  abweichungenErfasst  Abweichung[]
+  bestellungenAngelegt Bestellung[]
+  preisAenderungen     ArtikelLieferantPreis[]
+
+  @@map("benutzer")
+}
+
+model Session {
+  token      String   @id
+  benutzerId String   @map("benutzer_id")
+  laeuftAb   DateTime @map("laeuft_ab")
+  erstelltAm DateTime @default(now()) @map("erstellt_am")
+
+  benutzer Benutzer @relation(fields: [benutzerId], references: [id], onDelete: Cascade)
+
+  @@map("session")
+}
+
+// ─── Mitarbeiter ──────────────────────────────────────────────────────────────
+
+model Mitarbeiter {
+  id         String   @id @default(uuid())
+  name       String
+  kuerzel    String   @unique
+  status     String   @default("aktiv")
+  benutzerId String?  @unique @map("benutzer_id")
+  erstelltAm DateTime @default(now()) @map("erstellt_am")
+
+  benutzer    Benutzer?        @relation(fields: [benutzerId], references: [id], onDelete: SetNull)
+  zeiten      Auftragszeit[]
+  qualitaet   Qualitaet[]
+  zuweisungen AuftragZuweisung[]
+  team        AuftragMitarbeiter[]
+  abweichungen Abweichung[]
+
+  @@map("mitarbeiter")
+}
+
+// ─── Lager & Artikel ──────────────────────────────────────────────────────────
+
+model Lagerort {
+  id         String   @id @default(uuid())
+  name       String   @unique
+  kuerzel    String
+  aktiv      Boolean  @default(true)
+  erstelltAm DateTime @default(now()) @map("erstellt_am")
+
+  artikel            Artikel[]
+  bewegungenQuelle   Materialbewegung[] @relation("LagerortQuelle")
+  bewegungenZiel     Materialbewegung[] @relation("LagerortZiel")
+  inventurZaehlungen InventurZaehlung[]
+
+  @@map("lagerort")
+}
+
+model Artikel {
+  artikelnummer   String   @id
+  bezeichnung     String
+  langtext        String?
+  vorgabezeit     Float?
+  istBasissystem  Boolean  @default(false) @map("ist_basissystem")
+  produktfamilie  String?
+  einheit         String   @default("Stk")
+  mindestbestand  Float?
+  lagerortId      String?  @map("lagerort_id")
+  bestandAktiv    Boolean  @default(true) @map("bestand_aktiv")
+  gesperrt        Boolean  @default(false)
+  ungeprueft      Boolean  @default(false)
+  lagerplatzReihe String?  @map("lagerplatz_reihe")
+  lagerplatzRegal String?  @map("lagerplatz_regal")
+  lagerplatzFach  String?  @map("lagerplatz_fach")
+  lagerplatzPlatz String?  @map("lagerplatz_platz")
+  erfasstAm       DateTime @default(now()) @map("erfasst_am")
+
+  lagerort            Lagerort?             @relation(fields: [lagerortId], references: [id])
+  auftragPositionen   AuftragPosition[]
+  stuecklistenOben    StuecklistePosition[] @relation("ParentArtikel")
+  stuecklistenUnten   StuecklistePosition[] @relation("KindArtikel")
+  materialbewegungen  Materialbewegung[]
+  inventurZaehlungen  InventurZaehlung[]
+  kommissionierChecks KommissionierCheck[]
+  lieferanten         ArtikelLieferant[]
+  bestellPositionen   BestellPosition[]
+
+  @@map("artikel")
+}
+
+model StuecklistePosition {
+  id            String @id @default(uuid())
+  parentArtikel String @map("parent_artikel")
+  kindArtikel   String @map("kind_artikel")
+  menge         Float
+  einheit       String @default("Stk")
+  posNr         Int    @map("pos_nr")
+
+  parent Artikel @relation("ParentArtikel", fields: [parentArtikel], references: [artikelnummer], onDelete: Cascade)
+  kind   Artikel @relation("KindArtikel", fields: [kindArtikel], references: [artikelnummer])
+
+  @@unique([parentArtikel, kindArtikel])
+  @@map("stueckliste_position")
+}
+
+// ─── Aufträge ─────────────────────────────────────────────────────────────────
+
+model Auftrag {
+  id                  String         @id @default(uuid())
+  // BEWUSST nicht unique: V2-Produktivdaten enthalten doppelte Nummern
+  // (manuell angelegter + beleg-importierter Auftrag mit gleicher P-Nummer).
+  nummer              String
+  bezeichnung         String
+  menge               Float
+  status              Auftragsstatus @default(offen)
+  kunde               String?
+  liefertermin        String?
+  abNummer            String?        @map("ab_nummer")
+  quelle              String?
+  produktManuell      Boolean        @default(false) @map("produkt_manuell")
+  laenge              Float?
+  breite              Float?
+  hoehe               Float?
+  gewicht             Float?
+  pausengrund         String?
+  notiz               String?
+  planZeitSekunden    Int?           @map("plan_zeit_sekunden")
+  start               DateTime?
+  ende                DateTime?
+  promisedDate        DateTime?      @map("promised_date")
+  promisedDateManuell Boolean        @default(false) @map("promised_date_manuell")
+  reworkRequired      Boolean        @default(false) @map("rework_required")
+  reworkReason        String?        @map("rework_reason")
+  stalledMissingParts Boolean        @default(false) @map("stalled_missing_parts")
+  stallDays           Int?           @map("stall_days")
+  kpiAusgeschlossen   Boolean        @default(false) @map("kpi_ausgeschlossen")
+  // Tagesliste-Queue: 0 = Normal, 1 = Hoch, 2 = Dringend (absteigend sortiert)
+  prioritaet          Int            @default(0)
+  // Benutzerstempel (ISO 7.5); nullable: Altdaten + Beleg-Import bleiben NULL
+  erstelltVonId       String?        @map("erstellt_von_id")
+  erstelltAm          DateTime       @default(now()) @map("erstellt_am")
+
+  erstelltVon         Benutzer?      @relation(fields: [erstelltVonId], references: [id], onDelete: SetNull)
+  positionen          AuftragPosition[]
+  zeiten              Auftragszeit[]
+  dateien             Datei[]
+  qualitaet           Qualitaet[]
+  materialbewegungen  Materialbewegung[]
+  kommissionierChecks KommissionierCheck[]
+  zuweisungen         AuftragZuweisung[]
+  team                AuftragMitarbeiter[]
+  packmasse           AuftragPackmass[]
+  pruefungen          Pruefung[]
+  abweichungen        Abweichung[]
+  materialSnapshots   AuftragMaterialSnapshot[]
+  bestellPositionen   BestellPosition[]
+
+  @@index([status])
+  @@index([nummer])
+  @@map("auftrag")
+}
+
+/// n:m-Zuweisung „Arbeitsvorrat": welcher Mitarbeiter soll an welchem Auftrag arbeiten (V2 ≥2.39).
+model AuftragMitarbeiter {
+  auftragId       String   @map("auftrag_id")
+  mitarbeiterId   String   @map("mitarbeiter_id")
+  zugewiesenAm    DateTime @default(now()) @map("zugewiesen_am")
+  zugewiesenVonId String?  @map("zugewiesen_von_id")
+
+  auftrag       Auftrag     @relation(fields: [auftragId], references: [id], onDelete: Cascade)
+  mitarbeiter   Mitarbeiter @relation(fields: [mitarbeiterId], references: [id], onDelete: Cascade)
+  zugewiesenVon Benutzer?   @relation(fields: [zugewiesenVonId], references: [id], onDelete: SetNull)
+
+  @@id([auftragId, mitarbeiterId])
+  @@map("auftrag_mitarbeiter")
+}
+
+/// Packmaß (Kiste/Karton) einer Sendung — ein Auftrag kann mehrere haben (V2 ≥2.39).
+model AuftragPackmass {
+  id        String  @id @default(uuid())
+  auftragId String  @map("auftrag_id")
+  name      String?
+  laenge    Float?
+  breite    Float?
+  hoehe     Float?
+  gewicht   Float?
+  position  Int     @default(0)
+
+  auftrag Auftrag @relation(fields: [auftragId], references: [id], onDelete: Cascade)
+
+  @@map("auftrag_packmass")
+}
+
+model AuftragPosition {
+  id            String  @id @default(uuid())
+  auftragId     String  @map("auftrag_id")
+  posNr         Int     @map("pos_nr")
+  artikelnummer String?
+  bezeichnung   String
+  menge         Float
+  einheit       String  @default("Stk")
+
+  auftrag Auftrag  @relation(fields: [auftragId], references: [id], onDelete: Cascade)
+  artikel Artikel? @relation(fields: [artikelnummer], references: [artikelnummer])
+
+  @@map("auftrag_position")
+}
+
+// ─── Zeiterfassung ────────────────────────────────────────────────────────────
+
+model Zeitkategorie {
+  id         String   @id @default(uuid())
+  name       String   @unique
+  sortorder  Int      @default(0)
+  erstelltAm DateTime @default(now()) @map("erstellt_am")
+
+  zeiten Auftragszeit[]
+
+  @@map("zeitkategorie")
+}
+
+model Auftragszeit {
+  id               String                @id @default(uuid())
+  mitarbeiterId    String                @map("mitarbeiter_id")
+  auftragId        String                @map("auftrag_id")
+  kategorieId      String?               @map("kategorie_id")
+  start            DateTime
+  ende             DateTime?
+  beendetDurch     Zeitbeendigungsgrund? @map("beendet_durch")
+  istNachtrag      Boolean               @default(false) @map("ist_nachtrag")
+  istKorrektur     Boolean               @default(false) @map("ist_korrektur")
+  korrekturMinuten Float?                @map("korrektur_minuten")
+  erstelltAm       DateTime              @default(now()) @map("erstellt_am")
+
+  mitarbeiter Mitarbeiter    @relation(fields: [mitarbeiterId], references: [id])
+  auftrag     Auftrag        @relation(fields: [auftragId], references: [id], onDelete: Cascade)
+  kategorie   Zeitkategorie? @relation(fields: [kategorieId], references: [id])
+
+  @@map("auftragszeit")
+}
+
+// ─── Qualität ─────────────────────────────────────────────────────────────────
+
+model Qualitaet {
+  id            String   @id @default(uuid())
+  auftragId     String   @map("auftrag_id")
+  mitarbeiterId String?  @map("mitarbeiter_id")
+  gut           Float    @default(0)
+  ausschuss     Float    @default(0)
+  nacharbeit    Float    @default(0)
+  bemerkung     String?
+  // Wer hat erfasst (Benutzer) — getrennt von "wer hat gearbeitet" (Mitarbeiter)
+  erfasstVonId  String?  @map("erfasst_von_id")
+  zeitstempel   DateTime @default(now())
+
+  auftrag     Auftrag      @relation(fields: [auftragId], references: [id], onDelete: Cascade)
+  mitarbeiter Mitarbeiter? @relation(fields: [mitarbeiterId], references: [id])
+  erfasstVon  Benutzer?    @relation(fields: [erfasstVonId], references: [id], onDelete: SetNull)
+
+  @@map("qualitaet")
+}
+
+// ─── Dateien & Belege ─────────────────────────────────────────────────────────
+
+model Datei {
+  id               String   @id @default(uuid())
+  auftragId        String   @map("auftrag_id")
+  name             String
+  size             Int
+  mimetype         String
+  quelle           String?
+  speicherpfad     String   @map("speicherpfad")
+  hochgeladenVonId String?  @map("hochgeladen_von_id")
+  hinzugefuegt     DateTime @default(now())
+
+  auftrag        Auftrag   @relation(fields: [auftragId], references: [id], onDelete: Cascade)
+  hochgeladenVon Benutzer? @relation(fields: [hochgeladenVonId], references: [id], onDelete: SetNull)
+
+  @@map("datei")
+}
+
+model ImportierterBeleg {
+  dateiname     String   @id
+  mtime         DateTime
+  size          Int
+  abNummer      String?  @map("ab_nummer")
+  verarbeitetAm DateTime @default(now()) @map("verarbeitet_am")
+
+  @@map("importierter_beleg")
+}
+
+// ─── Material & Inventur ──────────────────────────────────────────────────────
+
+model Materialbewegung {
+  id             String               @id @default(uuid())
+  artikelnummer  String
+  lagerortId     String               @map("lagerort_id")
+  lagerortZielId String?              @map("lagerort_ziel_id")
+  art            Materialbewegungsart
+  menge          Float
+  auftragId      String?              @map("auftrag_id")
+  benutzerId     String?              @map("benutzer_id")
+  bemerkung      String?
+  gebuchtAm      DateTime             @default(now()) @map("gebucht_am")
+  // Materialbewertung (KLR I): wertmäßige Erfassung; alle nullable (additiv).
+  einstandspreis Decimal?             @db.Decimal(10, 4) @map("einstandspreis")
+  kostenstelle   String?              @map("kostenstelle")
+  kostentraeger  String?              @map("kostentraeger")
+  // Wareneingang gegen Bestellung (KF3-30): Bezug zur Bestellposition
+  bestellPositionId String?           @map("bestell_position_id")
+
+  artikel      Artikel           @relation(fields: [artikelnummer], references: [artikelnummer])
+  lagerort     Lagerort          @relation("LagerortQuelle", fields: [lagerortId], references: [id])
+  lagerortZiel Lagerort?         @relation("LagerortZiel", fields: [lagerortZielId], references: [id])
+  auftrag         Auftrag?          @relation(fields: [auftragId], references: [id])
+  benutzer        Benutzer?         @relation(fields: [benutzerId], references: [id])
+  inventur        InventurZaehlung?
+  pruefung        Pruefung?
+  bestellPosition BestellPosition?  @relation(fields: [bestellPositionId], references: [id])
+
+  @@index([bestellPositionId])
+  @@map("materialbewegung")
+}
+
+model InventurZaehlung {
+  id            String         @id @default(uuid())
+  artikelnummer String
+  sollMenge     Float          @map("soll_menge")
+  istMenge      Float?         @map("ist_menge")
+  // NULL bis zur Buchung — der Lagerort wird erst beim Buchen gewählt (V2-Ablauf)
+  lagerortId    String?        @map("lagerort_id")
+  status        Inventurstatus @default(erfasst)
+  bewegungId    String?        @unique @map("bewegung_id")
+  notiz         String?
+  erfasstVonId  String?        @map("erfasst_von_id")
+  erfasstAm     DateTime       @default(now()) @map("erfasst_am")
+  gebuchtVonId  String?        @map("gebucht_von_id")
+  gebuchtAm     DateTime?      @map("gebucht_am")
+
+  artikel    Artikel           @relation(fields: [artikelnummer], references: [artikelnummer])
+  lagerort   Lagerort?         @relation(fields: [lagerortId], references: [id])
+  bewegung   Materialbewegung? @relation(fields: [bewegungId], references: [id])
+  erfasstVon Benutzer?         @relation("ErfasstVon", fields: [erfasstVonId], references: [id])
+  gebuchtVon Benutzer?         @relation("GebuchtVon", fields: [gebuchtVonId], references: [id])
+
+  @@map("inventur_zaehlung")
+}
+
+model KommissionierCheck {
+  auftragId     String    @map("auftrag_id")
+  artikelnummer String
+  abgehakt      Boolean   @default(false)
+  abgehaktAm    DateTime? @map("abgehakt_am")
+  abgehaktVonId String?   @map("abgehakt_von_id")
+
+  auftrag     Auftrag   @relation(fields: [auftragId], references: [id], onDelete: Cascade)
+  artikel     Artikel   @relation(fields: [artikelnummer], references: [artikelnummer])
+  abgehaktVon Benutzer? @relation(fields: [abgehaktVonId], references: [id])
+
+  @@id([auftragId, artikelnummer])
+  @@map("kommissionier_check")
+}
+
+// ─── V3 NEU: Audit-Historie (ISO 9001 Kap. 7.5) ──────────────────────────────
+
+/// Generisches Ereignis-Log: Wer hat wann was geändert. Bewusst OHNE FK auf die
+/// Zielentität, damit der Nachweis eine Löschung (z. B. Auftrag-Cascade) überlebt.
+model AuditEvent {
+  id          String   @id @default(uuid())
+  entitaet    String // "auftrag" | "artikel" | "datei" | …
+  entitaetId  String   @map("entitaet_id")
+  aktion      String // "statuswechsel" | "feldAenderung" | "erstellt" | "geloescht" | "endpruefung" | …
+  feld        String?
+  altWert     String?  @map("alt_wert")
+  neuWert     String?  @map("neu_wert")
+  kontext     Json?
+  benutzerId  String?  @map("benutzer_id")
+  zeitstempel DateTime @default(now())
+
+  benutzer Benutzer? @relation(fields: [benutzerId], references: [id], onDelete: SetNull)
+
+  @@index([entitaet, entitaetId])
+  @@index([zeitstempel])
+  @@map("audit_event")
+}
+
+// ─── V3 NEU: Prüfungen (ISO 9001 Kap. 8.4 / 8.6) ─────────────────────────────
+
+enum PruefTyp {
+  endpruefung
+  wareneingang
+}
+
+enum PruefErgebnis {
+  ok
+  bedingtFrei
+  abweichend
+}
+
+/// Prüfprotokoll: Endprüfung vor Auslieferung (auftragId) und — ab KF3-30 —
+/// Eingangsprüfung je Wareneingangs-Bewegung (bewegungId, Muster InventurZaehlung).
+model Pruefung {
+  id            String        @id @default(uuid())
+  typ           PruefTyp
+  ergebnis      PruefErgebnis
+  auftragId     String?       @map("auftrag_id")
+  // Denormalisiert: bleibt lesbar, wenn der Auftrag gelöscht wird (SetNull)
+  auftragNummer String?       @map("auftrag_nummer")
+  bewegungId    String?       @unique @map("bewegung_id")
+  artikelnummer String?
+  menge         Float?
+  bemerkung     String? // Pflicht bei ergebnis ≠ ok (Zod)
+  // Nullable + SetNull wie alle Benutzerstempel: Benutzer bleiben löschbar,
+  // der Nachweis (AuditEvent + auftragNummer) bleibt bestehen.
+  prueferId     String?       @map("pruefer_id")
+  geprueftAm    DateTime      @default(now()) @map("geprueft_am")
+
+  // SetNull statt Cascade: das Prüfprotokoll ist ISO-Aufzeichnung und
+  // überlebt die Löschung des Auftrags.
+  auftrag  Auftrag?          @relation(fields: [auftragId], references: [id], onDelete: SetNull)
+  bewegung Materialbewegung? @relation(fields: [bewegungId], references: [id])
+  pruefer  Benutzer?         @relation(fields: [prueferId], references: [id], onDelete: SetNull)
+
+  @@index([auftragId])
+  @@map("pruefung")
+}
+
+// ─── V3 NEU: Material-Snapshot am Auftrag (ISO 9001 Kap. 7.5) ─────────────────
+
+/// Eingefrorene Stücklisten-Auflösung zum Kommissionier-Zeitpunkt: beantwortet
+/// „welcher Materialstand galt für Auftrag X" ohne Voll-Versionierung der BOM.
+model AuftragMaterialSnapshot {
+  id            String   @id @default(uuid())
+  auftragId     String   @map("auftrag_id")
+  artikelnummer String
+  bezeichnung   String?
+  einheit       String?
+  bruttobedarf  Float
+  bestand       Float
+  nettobedarf   Float
+  ausLager      Float    @map("aus_lager")
+  typ           String // "einzelteil" | "baugruppe"
+  erstelltAm    DateTime @default(now()) @map("erstellt_am")
+
+  auftrag Auftrag @relation(fields: [auftragId], references: [id], onDelete: Cascade)
+
+  @@unique([auftragId, artikelnummer])
+  @@map("auftrag_material_snapshot")
+}
+
+// ─── V3 NEU: Abweichungen / Minimal-CAPA (ISO 9001 Kap. 8.7 / 10.2) ───────────
+
+enum AbweichungTyp {
+  nacharbeit
+  ausschuss
+  reklamationKunde
+  reklamationLieferant
+}
+
+enum AbweichungStatus {
+  offen
+  inBearbeitung
+  abgeschlossen
+}
+
+/// Grund-Katalog für Pareto-Auswertungen (KF3-34). bereich: "nacharbeit" | "fehlteil" | "fuenfs" | …
+model AbweichungsGrund {
+  id      String  @id @default(uuid())
+  name    String  @unique
+  bereich String  @default("nacharbeit")
+  aktiv   Boolean @default(true)
+
+  abweichungen Abweichung[]
+
+  @@map("abweichungs_grund")
+}
+
+/// Strukturierte Abweichung mit Ursache/Maßnahme — Minimal-CAPA, so geschnitten,
+/// dass 5S-Maßnahmen (KF3-36) und Lieferanten-Reklamationen (KF3-30) andocken.
+model Abweichung {
+  id               String           @id @default(uuid())
+  typ              AbweichungTyp
+  status           AbweichungStatus @default(offen)
+  auftragId        String?          @map("auftrag_id")
+  // Denormalisiert: bleibt lesbar, wenn der Auftrag gelöscht wird (SetNull)
+  auftragNummer    String?          @map("auftrag_nummer")
+  artikelnummer    String?
+  beschreibung     String
+  ursache          String?
+  massnahme        String?
+  grundId          String?          @map("grund_id")
+  verantwortlichId String?          @map("verantwortlich_id")
+  faelligAm        DateTime?        @map("faellig_am")
+  erfasstVonId     String?          @map("erfasst_von_id")
+  erfasstAm        DateTime         @default(now()) @map("erfasst_am")
+  abgeschlossenAm  DateTime?        @map("abgeschlossen_am")
+
+  // SetNull: Abweichungen sind ISO-Aufzeichnungen und überleben die Auftrags-Löschung
+  auftrag        Auftrag?          @relation(fields: [auftragId], references: [id], onDelete: SetNull)
+  grund          AbweichungsGrund? @relation(fields: [grundId], references: [id])
+  verantwortlich Mitarbeiter?      @relation(fields: [verantwortlichId], references: [id])
+  erfasstVon     Benutzer?         @relation(fields: [erfasstVonId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([auftragId])
+  @@map("abweichung")
+}
+
+// ─── V3 NEU: Lieferanten & EOQ ────────────────────────────────────────────────
+
+model Lieferant {
+  id             String   @id @default(uuid())
+  name           String   @unique
+  kontakt        String?
+  email          String?
+  telefon        String?
+  lieferzeitTage Int      @default(7) @map("lieferzeit_tage")
+  aktiv          Boolean  @default(true)
+  erstelltAm     DateTime @default(now()) @map("erstellt_am")
+
+  artikel      ArtikelLieferant[]
+  bestellungen Bestellung[]
+
+  @@map("lieferant")
+}
+
+model ArtikelLieferant {
+  id              String   @id @default(uuid())
+  artikelnummer   String
+  lieferantId     String   @map("lieferant_id")
+  einkaufspreis   Decimal  @db.Decimal(10, 4)
+  mindestmenge    Float    @default(1)
+  // EOQ: optimale Bestellmenge = sqrt(2 * jahresbedarf * bestellkosten / lagerkostensatz)
+  bestellkosten   Decimal? @db.Decimal(10, 2) @map("bestellkosten")
+  lagerkostensatz Decimal? @db.Decimal(10, 4) @map("lagerkostensatz")
+  jahresbedarf    Float?   @map("jahresbedarf")
+  erstelltAm      DateTime @default(now()) @map("erstellt_am")
+
+  artikel   Artikel   @relation(fields: [artikelnummer], references: [artikelnummer], onDelete: Cascade)
+  lieferant Lieferant @relation(fields: [lieferantId], references: [id], onDelete: Cascade)
+
+  @@unique([artikelnummer, lieferantId])
+  @@map("artikel_lieferant")
+}
+
+/// Append-only Preishistorie je Artikel-Lieferant-Link (KF3-31; ISO-Leitsatz
+/// „Historie statt überschreibbarer Felder"). einkaufspreis am Link bleibt
+/// der aktuelle Wert — jede Änderung hängt hier eine Zeile an.
+/// Bewusst OHNE FK auf den Link (Muster AuditEvent): die Historie ist
+/// ISO-Aufzeichnung und überlebt das Löschen der Verknüpfung; artikelnummer
+/// und lieferantId sind dafür denormalisiert.
+model ArtikelLieferantPreis {
+  id                 String   @id @default(uuid())
+  artikelLieferantId String   @map("artikel_lieferant_id")
+  artikelnummer      String?
+  lieferantId        String?  @map("lieferant_id")
+  preis              Decimal  @db.Decimal(10, 4)
+  gueltigAb          DateTime @default(now()) @map("gueltig_ab")
+  quelle             String? // "manuell" | "bestellung"
+  benutzerId         String?  @map("benutzer_id")
+
+  benutzer Benutzer? @relation(fields: [benutzerId], references: [id], onDelete: SetNull)
+
+  @@index([artikelLieferantId, gueltigAb])
+  @@map("artikel_lieferant_preis")
+}
+
+// ─── V3 NEU: Einkauf / Bestellwesen (Anforderung Kap. 3; KF3-29/30) ───────────
+
+enum Bestellstatus {
+  angefragt
+  bestellt
+  teilgeliefert
+  abgeschlossen
+  storniert
+}
+
+model Bestellung {
+  id              String        @id @default(uuid())
+  // Fortlaufende Nummer ohne eigene Sequenzlogik (Anzeige "B-1001");
+  // Lehre aus den doppelten Auftragsnummern in V2.
+  nr              Int           @unique @default(autoincrement())
+  lieferantId     String        @map("lieferant_id")
+  status          Bestellstatus @default(angefragt)
+  // Kopf-Termin als Default; Positionen können übersteuern
+  zugesagtTermin  DateTime?     @map("zugesagt_termin")
+  bestelltAm      DateTime?     @map("bestellt_am")
+  abgeschlossenAm DateTime?     @map("abgeschlossen_am")
+  bemerkung       String?
+  angelegtVonId   String?       @map("angelegt_von_id")
+  erstelltAm      DateTime      @default(now()) @map("erstellt_am")
+
+  lieferant   Lieferant         @relation(fields: [lieferantId], references: [id])
+  angelegtVon Benutzer?         @relation(fields: [angelegtVonId], references: [id], onDelete: SetNull)
+  positionen  BestellPosition[]
+
+  @@index([status])
+  @@map("bestellung")
+}
+
+model BestellPosition {
+  id                   String    @id @default(uuid())
+  bestellungId         String    @map("bestellung_id")
+  posNr                Int       @map("pos_nr")
+  artikelnummer        String
+  menge                Float
+  // Ist-Bestellpreis (dokumentiert zugleich die faktische Preishistorie)
+  preis                Decimal?  @db.Decimal(10, 4)
+  // EOQ-Vorschlag bei Anlage (eingefroren); weicht menge ab → Pflicht-Begründung
+  vorschlagsmenge      Float?
+  uebersteuerungsGrund String?   @map("uebersteuerungs_grund")
+  zugesagtTermin       DateTime? @map("zugesagt_termin")
+  // Fehlteil-Bezug: aus welchem Fertigungsauftrag entstand der Bedarf (Kap. 3)
+  auftragId            String?   @map("auftrag_id")
+
+  // Gelieferte Menge wird NICHT denormalisiert — sie ist die Summe der
+  // Materialbewegungen je Position (Konvention wie src/lib/bestand.ts).
+  bestellung Bestellung         @relation(fields: [bestellungId], references: [id], onDelete: Cascade)
+  artikel    Artikel            @relation(fields: [artikelnummer], references: [artikelnummer])
+  auftrag    Auftrag?           @relation(fields: [auftragId], references: [id], onDelete: SetNull)
+  bewegungen Materialbewegung[]
+
+  @@unique([bestellungId, posNr])
+  @@map("bestell_position")
+}
+
+// ─── V3 NEU: Auftragsplanung / Timeline ───────────────────────────────────────
+
+model AuftragZuweisung {
+  id            String   @id @default(uuid())
+  auftragId     String   @map("auftrag_id")
+  mitarbeiterId String   @map("mitarbeiter_id")
+  geplantVon    DateTime @map("geplant_von")
+  geplantBis    DateTime @map("geplant_bis")
+  notiz         String?
+  erstelltAm    DateTime @default(now()) @map("erstellt_am")
+
+  auftrag     Auftrag     @relation(fields: [auftragId], references: [id], onDelete: Cascade)
+  mitarbeiter Mitarbeiter @relation(fields: [mitarbeiterId], references: [id])
+
+  @@map("auftrag_zuweisung")
+}

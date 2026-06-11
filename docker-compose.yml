@@ -1,0 +1,38 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: kimaflow
+      POSTGRES_USER: kima
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kima -d kimaflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://kima:${DB_PASSWORD}@db:5432/kimaflow
+      SESSION_SECRET: ${SESSION_SECRET}
+      NODE_ENV: production
+      STORAGE_DIR: /app/data/files
+      BELEGE_DIR: /app/data/belege
+    volumes:
+      - app_data:/app/data
+
+volumes:
+  db_data:
+  app_data:
