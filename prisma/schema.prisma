@@ -73,6 +73,7 @@ model Benutzer {
   bestellungenAngelegt Bestellung[]
   preisAenderungen     ArtikelLieferantPreis[]
   kundenauftraege      Kundenauftrag[]
+  fuenfsAudits         FuenfSAudit[]
 
   @@map("benutzer")
 }
@@ -106,6 +107,7 @@ model Mitarbeiter {
   zuweisungen AuftragZuweisung[]
   team        AuftragMitarbeiter[]
   abweichungen Abweichung[]
+  fuenfsBereiche FuenfSBereich[]
 
   @@map("mitarbeiter")
 }
@@ -425,7 +427,13 @@ model Qualitaet {
 
 model Datei {
   id               String   @id @default(uuid())
-  auftragId        String   @map("auftrag_id")
+  // GENAU EIN Bezug je Datei: auftragId ODER fuenfsPositionId ODER
+  // fuenfsBereichId — per CHECK-Constraint in der Migration erzwungen
+  // (Prisma kann keine Check-Constraints; KF3-36 lockert auftragId)
+  auftragId        String?  @map("auftrag_id")
+  // 5S (KF3-36): Ist-Foto einer Audit-Position bzw. Soll-Standard eines Bereichs
+  fuenfsPositionId String?  @map("fuenfs_position_id")
+  fuenfsBereichId  String?  @map("fuenfs_bereich_id")
   name             String
   size             Int
   mimetype         String
@@ -434,10 +442,104 @@ model Datei {
   hochgeladenVonId String?  @map("hochgeladen_von_id")
   hinzugefuegt     DateTime @default(now())
 
-  auftrag        Auftrag   @relation(fields: [auftragId], references: [id], onDelete: Cascade)
-  hochgeladenVon Benutzer? @relation(fields: [hochgeladenVonId], references: [id], onDelete: SetNull)
+  auftrag        Auftrag?             @relation(fields: [auftragId], references: [id], onDelete: Cascade)
+  fuenfsPosition FuenfSAuditPosition? @relation(fields: [fuenfsPositionId], references: [id], onDelete: Cascade)
+  fuenfsBereich  FuenfSBereich?       @relation(fields: [fuenfsBereichId], references: [id], onDelete: Cascade)
+  hochgeladenVon Benutzer?            @relation(fields: [hochgeladenVonId], references: [id], onDelete: SetNull)
 
+  @@index([fuenfsPositionId])
+  @@index([fuenfsBereichId])
   @@map("datei")
+}
+
+// ─── V3 NEU: 5S (Anforderung Kap. 5; KF3-36) ──────────────────────────────────
+
+enum FuenfSKategorie {
+  seiri // Sortieren
+  seiton // Systematisieren
+  seiso // Säubern
+  seiketsu // Standardisieren
+  shitsuke // Selbstdisziplin
+}
+
+enum FuenfSAuditStatus {
+  entwurf
+  abgeschlossen
+}
+
+/// 5S-Bereich (Stammdatum) — bewusst 5S-eigen, keine Generalisierung zu
+/// Produktionsbereichen. Kein DELETE (Audits hängen dran), aktiv-Flag.
+model FuenfSBereich {
+  id               String  @id @default(uuid())
+  name             String  @unique
+  // Standard-Verantwortlicher: Vorbelegung für Maßnahmen
+  verantwortlichId String? @map("verantwortlich_id")
+  sortorder        Int     @default(0)
+  aktiv            Boolean @default(true)
+  erstelltAm       DateTime @default(now()) @map("erstellt_am")
+
+  verantwortlich Mitarbeiter?          @relation(fields: [verantwortlichId], references: [id], onDelete: SetNull)
+  audits         FuenfSAudit[]
+  standards      Datei[]
+
+  @@map("fuenfs_bereich")
+}
+
+/// Pflegbare globale Checklisten-Vorlage (eine für alle Bereiche; nicht
+/// passende Punkte werden im Audit per "n. a." übersprungen).
+model FuenfSChecklistenPunkt {
+  id        String          @id @default(uuid())
+  kategorie FuenfSKategorie
+  text      String
+  sortorder Int             @default(0)
+  aktiv     Boolean         @default(true)
+
+  @@map("fuenfs_checklisten_punkt")
+}
+
+/// Monats-Audit je Bereich — genau eines je Bereich+Monat (unique).
+/// scoreProzent wird beim Abschluss EINGEFROREN: der Trend bleibt stabil,
+/// auch wenn die Checklisten-Vorlage später geändert wird.
+model FuenfSAudit {
+  id              String            @id @default(uuid())
+  bereichId       String            @map("bereich_id")
+  monat           String // "YYYY-MM" (Europe/Berlin)
+  status          FuenfSAuditStatus @default(entwurf)
+  bemerkung       String?
+  scoreProzent    Float?            @map("score_prozent")
+  erstelltVonId   String?           @map("erstellt_von_id")
+  erstelltAm      DateTime          @default(now()) @map("erstellt_am")
+  abgeschlossenAm DateTime?         @map("abgeschlossen_am")
+
+  bereich     FuenfSBereich         @relation(fields: [bereichId], references: [id])
+  erstelltVon Benutzer?             @relation(fields: [erstelltVonId], references: [id], onDelete: SetNull)
+  positionen  FuenfSAuditPosition[]
+
+  @@unique([bereichId, monat])
+  @@index([monat])
+  @@map("fuenfs_audit")
+}
+
+/// Eingefrorene Checklisten-Position eines Audits (Text + Kategorie sind
+/// Kopien — die Vorlage darf sich ändern, der Nachweis nicht).
+model FuenfSAuditPosition {
+  id             String          @id @default(uuid())
+  auditId        String          @map("audit_id")
+  kategorie      FuenfSKategorie
+  text           String
+  sortorder      Int             @default(0)
+  punkte         Int? // 0 | 1 | 2; null = noch nicht bewertet
+  nichtAnwendbar Boolean         @default(false) @map("nicht_anwendbar")
+  bemerkung      String?
+  // Verknüpfte 5S-Maßnahme (Abweichung typ=fuenfs, KF3-27-CAPA)
+  abweichungId   String?         @map("abweichung_id")
+
+  audit      FuenfSAudit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  abweichung Abweichung? @relation(fields: [abweichungId], references: [id], onDelete: SetNull)
+  fotos      Datei[]
+
+  @@index([auditId])
+  @@map("fuenfs_audit_position")
 }
 
 model ImportierterBeleg {
@@ -641,6 +743,7 @@ enum AbweichungTyp {
   ausschuss
   reklamationKunde
   reklamationLieferant
+  fuenfs // 5S-Maßnahme (KF3-36) — immer OHNE auftragId (Statusampel!)
 }
 
 enum AbweichungStatus {
@@ -686,6 +789,8 @@ model Abweichung {
   grund          AbweichungsGrund? @relation(fields: [grundId], references: [id])
   verantwortlich Mitarbeiter?      @relation(fields: [verantwortlichId], references: [id])
   erfasstVon     Benutzer?         @relation(fields: [erfasstVonId], references: [id], onDelete: SetNull)
+
+  fuenfsPositionen FuenfSAuditPosition[]
 
   @@index([status])
   @@index([auftragId])

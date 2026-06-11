@@ -50,6 +50,7 @@ const ABW_TYPEN = [
   { value: "ausschuss", label: "Ausschuss" },
   { value: "reklamationKunde", label: "Reklamation Kunde" },
   { value: "reklamationLieferant", label: "Reklamation Lieferant" },
+  { value: "fuenfs", label: "5S-Maßnahmen" },
   { value: "alle", label: "Alle Typen" },
 ];
 
@@ -61,9 +62,9 @@ function vorTagen(tage: number): string {
 }
 
 /** Pareto-Auswertung (KF3-34): Nacharbeitsgründe / Fehlteile mit 80/20-Linie. */
-export function ParetoBlock() {
+export function ParetoBlock({ initialAbwTyp = "nacharbeit" }: { initialAbwTyp?: string } = {}) {
   const [typ, setTyp] = useState<"nacharbeitsgruende" | "fehlteile">("nacharbeitsgruende");
-  const [abwTyp, setAbwTyp] = useState("nacharbeit");
+  const [abwTyp, setAbwTyp] = useState(initialAbwTyp);
   const [quelle, setQuelle] = useState<"bestellbezug" | "mangel">("bestellbezug");
   const [von, setVon] = useState(vorTagen(90));
   const [bis, setBis] = useState(vorTagen(0));

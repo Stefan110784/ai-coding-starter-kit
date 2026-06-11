@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Users, ClipboardCheck, Clock, CheckCircle2, Activity } from "lucide-react";
+import { FuenfsErinnerung } from "@/components/fuenfs-erinnerung";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -121,6 +122,9 @@ export default function DashboardPage() {
           <Activity className="size-3" /> Live · alle 15 s
         </span>
       </div>
+
+      {/* 5S-Monats-Erinnerung (KF3-36, rein abgeleitet) */}
+      <FuenfsErinnerung />
 
       {/* KPI-Karten */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

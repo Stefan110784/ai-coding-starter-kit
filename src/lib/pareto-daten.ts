@@ -9,7 +9,7 @@ import { lokalDatum } from "@/lib/auswertung";
 
 export type ParetoTyp = "nacharbeitsgruende" | "fehlteile";
 export type FehlteilQuelle = "bestellbezug" | "mangel";
-export type AbwTypFilter = "nacharbeit" | "ausschuss" | "reklamationKunde" | "reklamationLieferant" | "alle";
+export type AbwTypFilter = "nacharbeit" | "ausschuss" | "reklamationKunde" | "reklamationLieferant" | "fuenfs" | "alle";
 
 export interface ParetoRohdaten {
   zaehlung: Array<{ key: string; label: string; anzahl: number }>;

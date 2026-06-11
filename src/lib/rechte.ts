@@ -67,6 +67,11 @@ export const RECHTE_KATALOG: RechteGruppe[] = [
       { key: "vertrieb.bearbeiten", label: "Kunden & Kundenaufträge anlegen / ändern / freigeben" },
     ],
   },
+  {
+    key: "fuenfs",
+    label: "5S",
+    funktionen: [{ key: "fuenfs.audit", label: "Audits durchführen / Maßnahmen anlegen" }],
+  },
   { key: "auswertung", label: "Auswertung", funktionen: [] },
   { key: "verwaltung", label: "Verwaltung (Stammdaten & Benutzer)", funktionen: [] },
 ];

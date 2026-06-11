@@ -88,6 +88,47 @@ export async function legeDateiAn(
   return ok(datei, 201);
 }
 
+/**
+ * Upload für 5S-Fotos (KF3-36): Ist-Foto einer Audit-Position oder
+ * Soll-Standard eines Bereichs — gleiche Größen-/MIME-Härtung wie Aufträge,
+ * Ablage unter einem synthetischen "fuenfs-…"-Ordner, kein Foto-Export.
+ */
+export async function legeFuenfsFotoAn(
+  bezug: { fuenfsPositionId: string } | { fuenfsBereichId: string },
+  file: File,
+  benutzerId?: string
+): Promise<NextResponse> {
+  if (file.size > MAX_DATEI_BYTES) {
+    return err(`Datei zu groß (max. ${MAX_DATEI_BYTES / 1024 / 1024} MB)`, 413);
+  }
+  const name = file.name || "foto";
+  const mimetype = rateMimetype(name, file.type || undefined);
+  if (!/^image\//.test(mimetype)) {
+    return err("Für 5S sind nur Bilddateien erlaubt", 415);
+  }
+
+  const daten = Buffer.from(await file.arrayBuffer());
+  const dateiId = randomUUID();
+  const ordner =
+    "fuenfsPositionId" in bezug ? `fuenfs-pos-${bezug.fuenfsPositionId}` : `fuenfs-std-${bezug.fuenfsBereichId}`;
+  const rel = storage.relPfad(ordner, dateiId, name, { foto: true });
+  const size = await storage.schreibe(rel, daten);
+
+  const datei = await prisma.datei.create({
+    data: {
+      id: dateiId,
+      ...bezug,
+      name,
+      size,
+      mimetype,
+      quelle: "foto",
+      speicherpfad: rel,
+      hochgeladenVonId: benutzerId ?? null,
+    },
+  });
+  return ok(datei, 201);
+}
+
 /** Download mit Inline-Disposition; 410 wenn der Inhalt in der Ablage fehlt. */
 export async function dateiDownloadResponse(dateiId: string): Promise<NextResponse> {
   const datei = await prisma.datei.findUnique({ where: { id: dateiId } });

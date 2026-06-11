@@ -13,6 +13,7 @@ import {
   Truck,
   ShoppingCart,
   Handshake,
+  Sparkles,
   Settings,
 } from "lucide-react";
 import {
@@ -32,6 +33,7 @@ const navItems = [
   { href: "/auftraege", icon: ClipboardList, label: "Aufträge", recht: "auftraege" },
   { href: "/zeiten", icon: Clock, label: "Zeiterfassung", recht: "zeiten" },
   { href: "/qualitaet", icon: Star, label: "Qualität", recht: "qualitaet" },
+  { href: "/fuenfs", icon: Sparkles, label: "5S", recht: "fuenfs" },
   { href: "/material", icon: Package, label: "Material / Lager", recht: "lager" },
   { href: "/planung", icon: CalendarDays, label: "Planung / Timeline", recht: "planung" },
   { href: "/lieferanten", icon: Truck, label: "Lieferanten & EOQ", recht: "lieferanten" },
