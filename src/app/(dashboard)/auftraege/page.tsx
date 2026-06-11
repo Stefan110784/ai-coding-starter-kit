@@ -170,6 +170,7 @@ export default function AuftraegePage() {
     liefertermin: "",
     abNummer: "",
     prioritaet: "0",
+    kundenauftragId: "",
   });
   const [createErrors, setCreateErrors] = useState<Record<string, string>>({});
 
@@ -202,7 +203,14 @@ export default function AuftraegePage() {
     const res = await fetch("/api/auftraege", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, menge: parsed.data.menge, prioritaet: parseInt(form.prioritaet, 10) }),
+      body: JSON.stringify({
+        ...form,
+        menge: parsed.data.menge,
+        prioritaet: parseInt(form.prioritaet, 10),
+        kundenauftragId: form.kundenauftragId || undefined,
+        // Bei verknüpftem KA führt dessen Kunde (Server zieht nach)
+        kunde: form.kundenauftragId ? undefined : form.kunde || undefined,
+      }),
     });
     const body = await res.json();
     if (!res.ok) { toast.error(body.error ?? "Fehler beim Erstellen"); return; }
@@ -214,7 +222,7 @@ export default function AuftraegePage() {
       toast.warning(`Material reicht nicht: ${fehlend}`, { duration: 8000 });
     }
     setShowCreate(false);
-    setForm({ nummer: "", bezeichnung: "", menge: "", kunde: "", liefertermin: "", abNummer: "", prioritaet: "0" });
+    setForm({ nummer: "", bezeichnung: "", menge: "", kunde: "", liefertermin: "", abNummer: "", prioritaet: "0", kundenauftragId: "" });
     setCreateErrors({});
     mutate(url);
   }
@@ -434,7 +442,13 @@ export default function AuftraegePage() {
                     </div>
                     <div className="space-y-1.5">
                       <Label>Kunde</Label>
-                      <Input value={editForm.kunde ?? ""} onChange={(e) => setEditForm({ ...editForm, kunde: e.target.value })} />
+                      <Input
+                        value={editForm.kunde ?? ""}
+                        onChange={(e) => setEditForm({ ...editForm, kunde: e.target.value })}
+                        // Relation ist führend: bei verknüpftem Kundenauftrag gesperrt
+                        disabled={!!editForm.kundenauftragId}
+                        title={editForm.kundenauftragId ? "Wird vom Kundenauftrag geführt" : undefined}
+                      />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -463,7 +477,7 @@ export default function AuftraegePage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  {hatRecht("vertrieb") && (
+                  {hatRecht("vertrieb.bearbeiten") && (
                     <div className="space-y-1.5">
                       <Label>Kundenauftrag</Label>
                       <Select
@@ -475,6 +489,13 @@ export default function AuftraegePage() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="keiner">– keiner –</SelectItem>
+                          {/* Aktuell verknüpfter KA auch anzeigen, wenn er nicht mehr offen ist */}
+                          {detail.kundenauftrag &&
+                            !(Array.isArray(kundenauftraege) ? kundenauftraege : []).some((ka) => ka.id === detail.kundenauftrag?.id) && (
+                              <SelectItem value={detail.kundenauftrag.id}>
+                                KA-{detail.kundenauftrag.nr} · {detail.kundenauftrag.kunde?.name} ({detail.kundenauftrag.status})
+                              </SelectItem>
+                            )}
                           {(Array.isArray(kundenauftraege) ? kundenauftraege : []).map((ka) => (
                             <SelectItem key={ka.id} value={ka.id}>
                               KA-{ka.nr} · {ka.kunde?.name}
@@ -729,13 +750,38 @@ export default function AuftraegePage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Kunde</Label>
-                <Input value={form.kunde} onChange={(e) => setForm({ ...form, kunde: e.target.value })} />
+                <Input
+                  value={form.kundenauftragId ? "wird vom Kundenauftrag geführt" : form.kunde}
+                  onChange={(e) => setForm({ ...form, kunde: e.target.value })}
+                  disabled={!!form.kundenauftragId}
+                />
               </div>
               <div className="space-y-1.5">
                 <Label>Liefertermin</Label>
                 <Input value={form.liefertermin} onChange={(e) => setForm({ ...form, liefertermin: e.target.value })} placeholder="z.B. KW 25/2026" />
               </div>
             </div>
+            {hatRecht("vertrieb.bearbeiten") && (
+              <div className="space-y-1.5">
+                <Label>Kundenauftrag (KF3-37)</Label>
+                <Select
+                  value={form.kundenauftragId || "keiner"}
+                  onValueChange={(v) => setForm({ ...form, kundenauftragId: v === "keiner" ? "" : v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="– keiner –" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="keiner">– keiner –</SelectItem>
+                    {(Array.isArray(kundenauftraege) ? kundenauftraege : []).map((ka) => (
+                      <SelectItem key={ka.id} value={ka.id}>
+                        KA-{ka.nr} · {ka.kunde?.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>AB-Nummer</Label>

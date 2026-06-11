@@ -131,8 +131,34 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
       const data: Prisma.AuftragUncheckedUpdateInput = { ...felder };
 
-      // --- Kundenauftrag verknüpfen/lösen (KF3-37) ---
-      if ("kundenauftragId" in parsed.data && felder.kundenauftragId !== auftrag.kundenauftragId) {
+      // --- Kundenauftrag verknüpfen/lösen/umhängen (KF3-37) ---
+      const verknuepfungGeaendert =
+        "kundenauftragId" in parsed.data && felder.kundenauftragId !== auftrag.kundenauftragId;
+      if (verknuepfungGeaendert) {
+        // Verknüpfung ist eine Vertriebsentscheidung
+        if (!hatRecht(auth.benutzer, "vertrieb.bearbeiten")) {
+          throw new KundenauftragUngueltig("Verknüpfen erfordert das Recht vertrieb.bearbeiten");
+        }
+        // Quell-Guard: der FA-Bestand gelieferter/stornierter Kundenaufträge
+        // ist Dokumentation — Lösen/Umhängen nur, solange der bisherige KA offen ist
+        const altKa = auftrag.kundenauftragId
+          ? await tx.kundenauftrag.findUnique({ where: { id: auftrag.kundenauftragId } })
+          : null;
+        if (altKa && ["geliefert", "storniert"].includes(altKa.status)) {
+          throw new KundenauftragUngueltig(
+            `bisheriger Kundenauftrag KA-${altKa.nr} ist ${altKa.status} — Verknüpfung eingefroren`
+          );
+        }
+        if (altKa) {
+          await auditEintrag(tx, {
+            entitaet: "auftrag",
+            entitaetId: id,
+            aktion: "kundenauftragGeloest",
+            altWert: `KA-${altKa.nr}`,
+            kontext: { nummer: auftrag.nummer },
+            benutzerId: auth.benutzer.id,
+          });
+        }
         if (felder.kundenauftragId) {
           const ka = await tx.kundenauftrag.findUnique({
             where: { id: felder.kundenauftragId },
@@ -144,6 +170,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           }
           // Kundennamen nachziehen — die Relation ist ab jetzt führend
           data.kunde = ka.kunde.name;
+          felder.kunde = ka.kunde.name; // auch im Audit-Diff sichtbar
           await auditEintrag(tx, {
             entitaet: "auftrag",
             entitaetId: id,
@@ -152,20 +179,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             kontext: { nummer: auftrag.nummer },
             benutzerId: auth.benutzer.id,
           });
-        } else {
-          // Lösen: kunde-String bleibt als Historie stehen
-          const altKa = auftrag.kundenauftragId
-            ? await tx.kundenauftrag.findUnique({ where: { id: auftrag.kundenauftragId } })
-            : null;
-          await auditEintrag(tx, {
-            entitaet: "auftrag",
-            entitaetId: id,
-            aktion: "kundenauftragGeloest",
-            altWert: altKa ? `KA-${altKa.nr}` : null,
-            kontext: { nummer: auftrag.nummer },
-            benutzerId: auth.benutzer.id,
-          });
         }
+      } else if (
+        "kunde" in parsed.data &&
+        auftrag.kundenauftragId &&
+        felder.kunde !== auftrag.kunde
+      ) {
+        // Relation ist führend: kunde-String verknüpfter FAs ist nicht frei
+        // editierbar (gleiche Regel wie der Beleg-Import-Guard)
+        throw new KundenauftragUngueltig(
+          "Kunde wird vom verknüpften Kundenauftrag geführt — dort ändern oder Verknüpfung lösen"
+        );
       }
 
       // --- Auto-Ableitung promisedDate aus Liefertermin (V2: auftraege.py:268-276) ---

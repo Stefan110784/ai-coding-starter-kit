@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, err, ok, handlePrismaError } from "@/lib/api-helpers";
+import { hatRecht } from "@/lib/rechte";
 import { auditEintrag } from "@/lib/audit";
 import { nettobedarfFuerAuftrag, type NettobedarfResult } from "@/lib/stueckliste";
 import { reservierungAktualisieren } from "@/lib/reservierung";
@@ -78,21 +79,26 @@ export async function POST(req: NextRequest) {
   });
   if (existing) return err("Auftragsnummer bereits vergeben", 409);
 
-  // Kundenauftrag-Verknüpfung (KF3-37): validieren + Kundennamen nachziehen
-  if (data.kundenauftragId) {
-    const ka = await prisma.kundenauftrag.findUnique({
-      where: { id: data.kundenauftragId },
-      include: { kunde: { select: { name: true } } },
-    });
-    if (!ka || !ka.aktiv) return err("Kundenauftrag nicht gefunden", 404);
-    if (!["neu", "freigegeben"].includes(ka.status)) {
-      return err(`Kundenauftrag: Status ${ka.status} erlaubt keine Verknüpfung`);
-    }
-    if (!data.kunde) data.kunde = ka.kunde.name;
+  // Kundenauftrag-Verknüpfung (KF3-37) ist eine Vertriebsentscheidung
+  if (data.kundenauftragId && !hatRecht(auth.benutzer, "vertrieb.bearbeiten")) {
+    return err("Verknüpfen mit Kundenauftrag erfordert das Recht vertrieb.bearbeiten", 403);
   }
 
   const anlegen = async () =>
     prisma.$transaction(async (tx) => {
+      // Verknüpfung INNERHALB der Transaktion validieren (kein TOCTOU) und den
+      // Kundennamen HART nachziehen — die Relation ist führend (wie PATCH)
+      if (data.kundenauftragId) {
+        const ka = await tx.kundenauftrag.findUnique({
+          where: { id: data.kundenauftragId },
+          include: { kunde: { select: { name: true } } },
+        });
+        if (!ka || !ka.aktiv) throw new KundenauftragUngueltig("nicht gefunden");
+        if (!["neu", "freigegeben"].includes(ka.status)) {
+          throw new KundenauftragUngueltig(`Status ${ka.status} erlaubt keine Verknüpfung`);
+        }
+        data.kunde = ka.kunde.name;
+      }
       const angelegt = await tx.auftrag.create({
         data: {
           ...data,
@@ -101,7 +107,7 @@ export async function POST(req: NextRequest) {
             ? { create: positionen }
             : undefined,
         },
-        include: { positionen: true },
+        include: { positionen: true, kundenauftrag: { select: { nr: true } } },
       });
       await auditEintrag(tx, {
         entitaet: "auftrag",
@@ -110,6 +116,16 @@ export async function POST(req: NextRequest) {
         kontext: { nummer: angelegt.nummer, bezeichnung: angelegt.bezeichnung },
         benutzerId: auth.benutzer.id,
       });
+      if (angelegt.kundenauftrag) {
+        await auditEintrag(tx, {
+          entitaet: "auftrag",
+          entitaetId: angelegt.id,
+          aktion: "kundenauftragVerknuepft",
+          neuWert: `KA-${angelegt.kundenauftrag.nr}`,
+          kontext: { nummer: angelegt.nummer },
+          benutzerId: auth.benutzer.id,
+        });
+      }
       // Materialreservierung + Verfügbarkeitsprüfung (KF3-33): Netting gegen
       // effektiven Bestand, Anspruch in derselben Transaktion fixieren.
       let material: NettobedarfResult | null = null;
@@ -125,13 +141,17 @@ export async function POST(req: NextRequest) {
   try {
     return ok(await anlegen(), 201);
   } catch (e) {
+    if (e instanceof KundenauftragUngueltig) return err(`Kundenauftrag: ${e.message}`, 400);
     if ((e as { code?: string })?.code === "P2034") {
       try {
         return ok(await anlegen(), 201);
       } catch (e2) {
+        if (e2 instanceof KundenauftragUngueltig) return err(`Kundenauftrag: ${e2.message}`, 400);
         return handlePrismaError(e2);
       }
     }
     return handlePrismaError(e);
   }
 }
+
+class KundenauftragUngueltig extends Error {}

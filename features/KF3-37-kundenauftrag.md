@@ -20,6 +20,16 @@ CAS-readyes Datenmodell, pragmatischer Lebenszyklus. CAS genesisWorld wird spät
 
 Staging-Tabellen/Sync-Job/REST-Client (KF3-38), Rückkanal (KF3-39), Kontakte/Adressen (leben in CAS), Projekte/Meilensteine (Kundenauftrag ist die spätere Aufhänge-Entität — mitgedacht, nicht gebaut), Auto-Statuswechsel, Dubletten-Merge.
 
+## Review-Fixes (2026-06-11, adversarialer Review — 25 Befunde, 12 eindeutige)
+
+- **geliefertAm ⇔ Status gekoppelt:** nur bei Status `geliefert` setzbar, nie auf null (KA fiele sonst still aus der KPI-Basis); Statuswechsel auf geliefert ignoriert stale Vorab-Daten (Default = jetzt). Termine sind nach Lieferung/Storno eingefroren.
+- **Kunde-Rename propagiert** in derselben Transaktion auf die `kunde`-Strings aller verknüpften FAs (auditiert `nameNachgezogen`); die Import-Konfliktprüfung vergleicht gegen den AKTUELLEN `Kunde.name` der Relation statt gegen den FA-String.
+- **„Relation ist führend“ überall durchgesetzt:** POST /api/auftraege validiert die Verknüpfung IN der Serializable-Transaktion (kein TOCTOU), zieht den Kundennamen hart nach und auditiert; manueller `kunde`-Edit an verknüpften FAs → 400; UI sperrt die Felder.
+- **Rechte:** Verknüpfen/Lösen/Umhängen erfordert `vertrieb.bearbeiten` (POST + PATCH + UI-Gate).
+- **Quell-KA-Guard:** Lösen/Umhängen blockiert, wenn der bisherige KA geliefert/storniert ist (FA-Bestand ist Doku); Umhängen schreibt Lösen- UND Verknüpfen-Audit.
+- **Kunde deaktivieren** nur ohne offene Kundenaufträge (409 mit Anzahl).
+- UI: Termin-Inputs patchen onBlur statt je Tastendruck; Detail-Sheet lädt über den GET-Endpoint (FA-Tabelle mit Zugesagt/Abgeschlossen statt Statusampel — bewusste Vereinfachung, die Ampel lebt auf der Aufträge-Seite); Edit-Select zeigt auch nicht mehr offene verknüpfte KAs; Kundenauftrag-Auswahl im Anlage-Dialog; Verlauf kennt die neuen Audit-Aktionen; KPI-Karte mit Grundgesamtheits-Tooltip.
+
 ## Akzeptanzkriterien
 
 - [ ] Kunde anlegen/bearbeiten/deaktivieren („K-nr“), kein Hard-Delete; casGuid manuell pflegbar

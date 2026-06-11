@@ -96,13 +96,17 @@ export function KundenauftraegeTab() {
   const { data, isLoading } = useSWR<KundenauftragRow[]>(key, fetcher);
   const { data: kundenData } = useSWR<KundeRow[]>("/api/kunden", fetcher);
   const [detailId, setDetailId] = useState<string | null>(null);
+  // Detail über den eigenen Endpoint — frische FA-Daten inkl. Terminen
+  const { data: detailData } = useSWR<KundenauftragRow & {
+    auftraege: Array<{ id: string; nummer: string; status: string; promisedDate: string | null; ende: string | null }>;
+  }>(detailId ? `/api/kundenauftraege/${detailId}` : null, fetcher);
   const [neuOffen, setNeuOffen] = useState(false);
   const [form, setForm] = useState({ kundeId: "", bezeichnung: "", bestellNrKunde: "", wunschtermin: "", notiz: "" });
   const [laeuft, setLaeuft] = useState(false);
 
   const liste = Array.isArray(data) ? data : [];
   const kunden = Array.isArray(kundenData) ? kundenData : [];
-  const detail = liste.find((k) => k.id === detailId) ?? null;
+  const detail = detailId && detailData && !("error" in detailData) ? detailData : null;
 
   function neuLaden() {
     mutate(key);
@@ -220,7 +224,7 @@ export function KundenauftraegeTab() {
       )}
 
       {/* ── Detail-Sheet ─────────────────────────────────────── */}
-      <Sheet open={!!detail} onOpenChange={(o) => { if (!o) setDetailId(null); }}>
+      <Sheet open={!!detailId} onOpenChange={(o) => { if (!o) setDetailId(null); }}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-3xl">
           {detail && (
             <>
@@ -260,35 +264,53 @@ export function KundenauftraegeTab() {
                 </div>
               )}
 
+              {/* Termine: onBlur statt onChange — kein Patch je Tastendruck;
+                  nach Lieferung/Storno serverseitig eingefroren */}
               <div className="grid gap-3 py-2 sm:grid-cols-3">
                 <div className="space-y-1.5">
                   <Label>Wunschtermin</Label>
                   <Input
+                    key={`wunsch-${detail.id}-${detail.wunschtermin}`}
                     type="date"
                     className="h-9"
-                    value={alsDatum(detail.wunschtermin)}
-                    disabled={!darfBearbeiten}
-                    onChange={(e) => patch(detail, { wunschtermin: alsIso(e.target.value) }, "Wunschtermin gespeichert")}
+                    defaultValue={alsDatum(detail.wunschtermin)}
+                    disabled={!darfBearbeiten || ["geliefert", "storniert"].includes(detail.status)}
+                    onBlur={(e) => {
+                      if (e.target.value !== alsDatum(detail.wunschtermin)) {
+                        patch(detail, { wunschtermin: alsIso(e.target.value) }, "Wunschtermin gespeichert");
+                      }
+                    }}
                   />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Bestätigter Termin</Label>
                   <Input
+                    key={`bestaetigt-${detail.id}-${detail.bestaetigtTermin}`}
                     type="date"
                     className="h-9"
-                    value={alsDatum(detail.bestaetigtTermin)}
-                    disabled={!darfBearbeiten}
-                    onChange={(e) => patch(detail, { bestaetigtTermin: alsIso(e.target.value) }, "Bestätigter Termin gespeichert")}
+                    defaultValue={alsDatum(detail.bestaetigtTermin)}
+                    disabled={!darfBearbeiten || ["geliefert", "storniert"].includes(detail.status)}
+                    onBlur={(e) => {
+                      if (e.target.value !== alsDatum(detail.bestaetigtTermin)) {
+                        patch(detail, { bestaetigtTermin: alsIso(e.target.value) }, "Bestätigter Termin gespeichert");
+                      }
+                    }}
                   />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Geliefert am</Label>
                   <Input
+                    key={`geliefert-${detail.id}-${detail.geliefertAm}`}
                     type="date"
                     className="h-9"
-                    value={alsDatum(detail.geliefertAm)}
+                    defaultValue={alsDatum(detail.geliefertAm)}
                     disabled={!darfBearbeiten || detail.status !== "geliefert"}
-                    onChange={(e) => patch(detail, { geliefertAm: alsIso(e.target.value) }, "Lieferdatum gespeichert")}
+                    onBlur={(e) => {
+                      // Leeren ist nicht erlaubt (geliefert ⇔ Datum) — Server lehnt ab
+                      if (e.target.value && e.target.value !== alsDatum(detail.geliefertAm)) {
+                        patch(detail, { geliefertAm: alsIso(e.target.value) }, "Lieferdatum gespeichert");
+                      }
+                    }}
                   />
                 </div>
               </div>
@@ -307,6 +329,8 @@ export function KundenauftraegeTab() {
                     <TableRow>
                       <TableHead>Nummer</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Zugesagt</TableHead>
+                      <TableHead>Abgeschlossen</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -316,6 +340,8 @@ export function KundenauftraegeTab() {
                         <TableCell>
                           <Badge variant={a.status === "abgeschlossen" ? "outline" : "secondary"}>{a.status}</Badge>
                         </TableCell>
+                        <TableCell className="text-sm">{fmt((a as { promisedDate?: string | null }).promisedDate ?? null)}</TableCell>
+                        <TableCell className="text-sm">{fmt((a as { ende?: string | null }).ende ?? null)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

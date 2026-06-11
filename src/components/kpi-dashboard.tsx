@@ -123,7 +123,14 @@ export function KpiDashboard() {
         {KPI_DEFS.map((def) => {
           const wert = kpi ? (kpi[def.key as keyof Kpi] as number | null) : null;
           return (
-            <Card key={def.key}>
+            <Card
+              key={def.key}
+              title={
+                def.key === "kundenLiefertreueRate"
+                  ? "Ende-zu-Ende gegen den Kundenwunschtermin (gelieferte Kundenaufträge) — andere Grundgesamtheit als die Fertigungs-Liefertreue (abgeschlossene Fertigungsaufträge gegen zugesagten Termin)"
+                  : undefined
+              }
+            >
               <CardHeader className="pb-1">
                 <CardTitle className="text-sm font-medium text-muted-foreground">{def.label}</CardTitle>
               </CardHeader>

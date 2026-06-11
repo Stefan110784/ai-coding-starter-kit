@@ -88,11 +88,32 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
       const { status: neuerStatus, wunschtermin, bestaetigtTermin, geliefertAm, ...felder } = parsed.data;
       const data: Record<string, unknown> = { ...felder };
+      // Effektiver Status NACH diesem Patch — Grundlage aller Feld-Guards
+      const zielStatus = neuerStatus ?? alt.status;
+
+      // Termine sind nach Lieferung/Storno eingefroren (Liefertreue wäre sonst
+      // rückwirkend veränderbar); Rückweg: Admin setzt den Status zurück.
+      if (["geliefert", "storniert"].includes(zielStatus) && zielStatus === alt.status) {
+        if (wunschtermin !== undefined || bestaetigtTermin !== undefined) {
+          throw new FeldGesperrt("Termine sind nach Lieferung/Storno eingefroren");
+        }
+      }
       if (wunschtermin !== undefined) data.wunschtermin = wunschtermin ? new Date(wunschtermin) : null;
       if (bestaetigtTermin !== undefined) {
         data.bestaetigtTermin = bestaetigtTermin ? new Date(bestaetigtTermin) : null;
       }
-      if (geliefertAm !== undefined) data.geliefertAm = geliefertAm ? new Date(geliefertAm) : null;
+      // geliefertAm ist an den Status gekoppelt (Invariante: geliefert ⇔ Datum):
+      // nur im Status geliefert (bzw. im selben Request mit dem Wechsel) setzbar,
+      // dort nie auf null — sonst fiele der KA still aus der Liefertreue-Basis.
+      if (geliefertAm !== undefined) {
+        if (zielStatus !== "geliefert") {
+          throw new FeldGesperrt("Lieferdatum nur bei Status geliefert");
+        }
+        if (geliefertAm === null) {
+          throw new FeldGesperrt("Status geliefert braucht ein Lieferdatum");
+        }
+        data.geliefertAm = new Date(geliefertAm);
+      }
 
       if (neuerStatus !== undefined && neuerStatus !== alt.status) {
         const vorwaerts = VORWAERTS[alt.status].includes(neuerStatus);
@@ -104,8 +125,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           throw new NurAdmin();
         }
         data.status = neuerStatus;
-        // geliefert setzt das Lieferdatum (überschreibbar); Rücknahme leert es
-        if (neuerStatus === "geliefert" && data.geliefertAm === undefined && alt.geliefertAm === null) {
+        // geliefert setzt das Lieferdatum (Default jetzt, im Request überschreibbar);
+        // ein etwaiges Alt-Datum wird bewusst NICHT übernommen (stale)
+        if (neuerStatus === "geliefert" && data.geliefertAm === undefined) {
           data.geliefertAm = new Date();
         }
         if (neuerStatus !== "geliefert" && alt.status === "geliefert" && data.geliefertAm === undefined) {
@@ -143,6 +165,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (e instanceof NichtGefunden) return err("Kundenauftrag nicht gefunden", 404);
     if (e instanceof UngueltigerWechsel) return err(`Statuswechsel ${e.message}`, 400);
     if (e instanceof NurAdmin) return err("Reaktivierung nur durch Admins", 403);
+    if (e instanceof FeldGesperrt) return err(e.message, 400);
     return handlePrismaError(e);
   }
 }
@@ -150,3 +173,4 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 class NichtGefunden extends Error {}
 class UngueltigerWechsel extends Error {}
 class NurAdmin extends Error {}
+class FeldGesperrt extends Error {}

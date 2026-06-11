@@ -30,6 +30,13 @@ const AKTION_LABEL: Record<string, string> = {
   erstellt: "Erstellt",
   geloescht: "Gelöscht",
   endpruefung: "Endprüfung",
+  // KF3-33/37
+  reserviert: "Material reserviert",
+  reservierungAufgeloest: "Reservierung aufgelöst",
+  kundenauftragVerknuepft: "Kundenauftrag verknüpft",
+  kundenauftragGeloest: "Kundenauftrag gelöst",
+  kundeKonflikt: "Kunden-Konflikt (Beleg)",
+  wareneingang: "Wareneingang",
 };
 
 const FELD_LABEL: Record<string, string> = {
@@ -110,12 +117,21 @@ export function AuftragVerlauf({ auftragId }: { auftragId: string }) {
               <Badge variant="outline" className="mr-2 text-[10px]">
                 {AKTION_LABEL[e.aktion] ?? e.aktion}
               </Badge>
-              {e.feld && (
+              {e.feld ? (
                 <span>
                   {FELD_LABEL[e.feld] ?? e.feld}: <span className="text-muted-foreground">{wert(e.altWert)}</span>
                   {" → "}
                   <span className="font-medium">{wert(e.neuWert)}</span>
                 </span>
+              ) : (
+                // Ereignisse ohne Feldbezug (Verknüpfungen, Konflikte): Werte zeigen
+                (e.altWert || e.neuWert) && (
+                  <span>
+                    {e.altWert && <span className="text-muted-foreground">{wert(e.altWert)}</span>}
+                    {e.altWert && e.neuWert && " → "}
+                    {e.neuWert && <span className="font-medium">{wert(e.neuWert)}</span>}
+                  </span>
+                )
               )}
             </TableCell>
           </TableRow>

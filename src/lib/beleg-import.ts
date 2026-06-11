@@ -150,18 +150,24 @@ export async function verarbeiteBeleg(
   // Reservierungs-Anlagepfad — parallele Läufe dürfen nicht beide den vollen
   // Bestand sehen. Bei Serialisierungskonflikt (P2034) einmal wiederholen.
   const lauf = () => prisma.$transaction(async (tx) => {
-    const vorhanden = await tx.auftrag.findFirst({ where: { abNummer: ab } });
+    const vorhanden = await tx.auftrag.findFirst({
+      where: { abNummer: ab },
+      include: { kundenauftrag: { include: { kunde: { select: { name: true } } } } },
+    });
     if (vorhanden) {
       // Ist der Auftrag mit einem Kundenauftrag verknüpft (KF3-37), ist die
       // Relation für den Kundennamen führend — der Parser-Wert wird nicht
       // mehr übernommen; eine Abweichung landet als Konflikt im Audit.
+      // Verglichen wird gegen den AKTUELLEN Kundennamen der Relation, nicht
+      // gegen den ggf. stalen kunde-String am Auftrag.
       const kundeFuehrend = vorhanden.kundenauftragId !== null;
-      if (kundeFuehrend && daten.kunde && daten.kunde !== vorhanden.kunde) {
+      const fuehrenderName = vorhanden.kundenauftrag?.kunde.name ?? vorhanden.kunde;
+      if (kundeFuehrend && daten.kunde && daten.kunde !== fuehrenderName) {
         await auditEintrag(tx, {
           entitaet: "auftrag",
           entitaetId: vorhanden.id,
           aktion: "kundeKonflikt",
-          altWert: vorhanden.kunde,
+          altWert: fuehrenderName,
           neuWert: daten.kunde,
           kontext: { abNummer: ab, hinweis: "Beleg nennt anderen Kunden als der Kundenauftrag" },
           benutzerId: null,
