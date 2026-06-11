@@ -37,10 +37,28 @@
 | KF3-19 | **Lieferantenverwaltung** – Stammdaten, Artikel-Lieferant-Zuordnung, Einkaufspreise *(NEU ggü. V2)* | In Progress | – | 2026-06-09 |
 | KF3-20 | **EOQ-Berechnung** – optimale Bestellmenge *(NEU ggü. V2)* | In Progress | – | 2026-06-09 |
 | KF3-21 | **Auftragsplanung / Timeline** – Mitarbeiter-Zuweisung mit Zeitfenstern (geplant_von/bis) *(NEU ggü. V2)* | In Progress | – | 2026-06-09 |
+| KF3-22 | **Scanner-Durchgängigkeit** – iOS-Fix (Rückkamera, Stop+Feedback) + Scan-Input in Zeiten/Kommissionierung | Roadmap | – | 2026-06-11 |
+| KF3-23 | **Auftragspriorität + Tagesliste** – Prioritätsfeld, Arbeitsvorrat als sortierte Queue | In Progress | [Spec](KF3-23-auftragsprioritaet-tagesliste.md) | 2026-06-11 |
+| KF3-24 | **Statusampel** – abgeleitete Ampel je Auftrag für Vertrieb/GF (Basis für CAS-Rückkanal) | Roadmap | – | 2026-06-11 |
+| KF3-25 | **Audit-Historie** – generisches AuditEvent (Status, Notiz, Felder) + fehlende Benutzerstempel (ISO 7.5) | Roadmap | – | 2026-06-11 |
+| KF3-26 | **Endprüfung** – Pruefung-Modell + hartes Gate vor Auftragsabschluss (ISO 8.6) | Roadmap | – | 2026-06-11 |
+| KF3-27 | **Abweichung/Nacharbeit** – Minimal-CAPA mit Ursache/Maßnahme + Grund-Katalog (ISO 8.7, 10.2) | Roadmap | – | 2026-06-11 |
+| KF3-28 | **Material-Snapshot am Auftrag** – eingefrorene Stücklisten-Auflösung bei Kommissionierung (ISO 7.5) | Roadmap | – | 2026-06-11 |
+| KF3-29 | **Bestellwesen** – Bestellung/Position, Bestellvorschläge (EOQ+Meldebestand), Überfälligkeits-Ampel | Roadmap | – | 2026-06-11 |
+| KF3-30 | **Wareneingang gegen Bestellung** – Soll-Ist-Abgleich, Teillieferung, Eingangsprüfung, Scanner | Roadmap | – | 2026-06-11 |
+| KF3-31 | **Preishistorie** – ArtikelLieferantPreis append-only, Quelle manuell/Bestellung | Roadmap | – | 2026-06-11 |
+| KF3-32 | **Lieferantenbewertung** – Termintreue + Qualität, rein abgeleitet (ISO 8.4) | Roadmap | – | 2026-06-11 |
+| KF3-33 | **Materialreservierung** – Reservierung je Auftrag + Verfügbarkeitsprüfung beim Anlegen | Roadmap | – | 2026-06-11 |
+| KF3-34 | **Pareto-Auswertungen** – Fehlteile + Nacharbeitsgründe (Grund-Katalog aus KF3-27) | Roadmap | – | 2026-06-11 |
+| KF3-35 | **Zeiterfassungsgrad-KPI** – Soll-Anwesenheit + Abwesenheiten, nur Team/Monat (Zielkorridor 70–85 %) | Roadmap | – | 2026-06-11 |
+| KF3-36 | **5S-Modul** – Monats-Audit mit Checkliste/Foto, Maßnahmen (CAPA), Trend | Roadmap | – | 2026-06-11 |
+| KF3-37 | **Kundenauftrag-Modell** – Kunde + Kundenauftrag, Ende-zu-Ende-Liefertreue | Roadmap | – | 2026-06-11 |
+| KF3-38 | **CAS-Sync Phase 1 (lesend)** – Staging, GUID-Mapping, Soft-Delete, Sync-Job (extern: API-Klärung) | Roadmap | – | 2026-06-11 |
+| KF3-39 | **CAS-Rückkanal** – Status + bestätigter Termin zurück in die CAS-Kundenakte | Roadmap | – | 2026-06-11 |
 
 <!-- Add features above this line -->
 
-## Next Available ID: KF3-22
+## Next Available ID: KF3-40
 
 ## Konventionen
 

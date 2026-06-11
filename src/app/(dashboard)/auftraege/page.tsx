@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { BarcodeScanner } from "@/components/barcode-scanner";
+import { PrioritaetBadge, PRIORITAET_LABELS } from "@/components/prioritaet-badge";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { KommissionierDialog } from "@/components/material/kommissionier-dialog";
 import { MaterialbedarfBlock } from "@/components/material/materialbedarf-block";
@@ -82,6 +83,7 @@ type Auftrag = {
   liefertermin?: string | null;
   abNummer?: string | null;
   notiz?: string | null;
+  prioritaet?: number;
   status: string;
   start?: string | null;
   ende?: string | null;
@@ -151,6 +153,7 @@ export default function AuftraegePage() {
     kunde: "",
     liefertermin: "",
     abNummer: "",
+    prioritaet: "0",
   });
   const [createErrors, setCreateErrors] = useState<Record<string, string>>({});
 
@@ -183,13 +186,13 @@ export default function AuftraegePage() {
     const res = await fetch("/api/auftraege", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, menge: parsed.data.menge }),
+      body: JSON.stringify({ ...form, menge: parsed.data.menge, prioritaet: parseInt(form.prioritaet, 10) }),
     });
     const body = await res.json();
     if (!res.ok) { toast.error(body.error ?? "Fehler beim Erstellen"); return; }
     toast.success(`Auftrag ${body.nummer} erstellt`);
     setShowCreate(false);
-    setForm({ nummer: "", bezeichnung: "", menge: "", kunde: "", liefertermin: "", abNummer: "" });
+    setForm({ nummer: "", bezeichnung: "", menge: "", kunde: "", liefertermin: "", abNummer: "", prioritaet: "0" });
     setCreateErrors({});
     mutate(url);
   }
@@ -314,9 +317,12 @@ export default function AuftraegePage() {
                       <TableCell>{a.kunde ?? "–"}</TableCell>
                       <TableCell>{a.liefertermin ?? "–"}</TableCell>
                       <TableCell>
-                        <Badge variant={STATUS_VARIANT[a.status] ?? "secondary"}>
-                          {STATUS_LABEL[a.status] ?? a.status}
-                        </Badge>
+                        <div className="flex items-center gap-1">
+                          <PrioritaetBadge prioritaet={a.prioritaet} />
+                          <Badge variant={STATUS_VARIANT[a.status] ?? "secondary"}>
+                            {STATUS_LABEL[a.status] ?? a.status}
+                          </Badge>
+                        </div>
                       </TableCell>
                       {darfStatus && (
                         <TableCell onClick={(e) => e.stopPropagation()}>
@@ -364,13 +370,16 @@ export default function AuftraegePage() {
                 {/* pr-8 hält Abstand zum Schließen-X des Sheets */}
                 <div className="flex items-center justify-between gap-2 pr-8">
                   <SheetTitle className="font-mono text-lg">{detail.nummer}</SheetTitle>
-                  <Button size="sm" variant="outline" onClick={() => { setEditMode(!editMode); setEditForm({ bezeichnung: detail.bezeichnung, menge: detail.menge, kunde: detail.kunde, liefertermin: detail.liefertermin, abNummer: detail.abNummer, notiz: detail.notiz }); }}>
+                  <Button size="sm" variant="outline" onClick={() => { setEditMode(!editMode); setEditForm({ bezeichnung: detail.bezeichnung, menge: detail.menge, kunde: detail.kunde, liefertermin: detail.liefertermin, abNummer: detail.abNummer, notiz: detail.notiz, prioritaet: detail.prioritaet }); }}>
                     <Pencil className="size-3 mr-1" />{editMode ? "Abbrechen" : "Bearbeiten"}
                   </Button>
                 </div>
-                <Badge className="w-fit" variant={STATUS_VARIANT[detail.status] ?? "secondary"}>
-                  {STATUS_LABEL[detail.status] ?? detail.status}
-                </Badge>
+                <div className="flex items-center gap-1">
+                  <PrioritaetBadge prioritaet={detail.prioritaet} />
+                  <Badge className="w-fit" variant={STATUS_VARIANT[detail.status] ?? "secondary"}>
+                    {STATUS_LABEL[detail.status] ?? detail.status}
+                  </Badge>
+                </div>
               </SheetHeader>
 
               <Separator className="my-3" />
@@ -400,6 +409,22 @@ export default function AuftraegePage() {
                       <Label>AB-Nummer</Label>
                       <Input value={editForm.abNummer ?? ""} onChange={(e) => setEditForm({ ...editForm, abNummer: e.target.value })} />
                     </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Priorität</Label>
+                    <Select
+                      value={String(editForm.prioritaet ?? 0)}
+                      onValueChange={(v) => setEditForm({ ...editForm, prioritaet: parseInt(v, 10) })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(PRIORITAET_LABELS).map(([v, l]) => (
+                          <SelectItem key={v} value={v}>{l}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-1.5">
                     <Label>Notiz</Label>
@@ -638,9 +663,24 @@ export default function AuftraegePage() {
                 <Input value={form.liefertermin} onChange={(e) => setForm({ ...form, liefertermin: e.target.value })} placeholder="z.B. KW 25/2026" />
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>AB-Nummer</Label>
-              <Input value={form.abNummer} onChange={(e) => setForm({ ...form, abNummer: e.target.value })} />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>AB-Nummer</Label>
+                <Input value={form.abNummer} onChange={(e) => setForm({ ...form, abNummer: e.target.value })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Priorität</Label>
+                <Select value={form.prioritaet} onValueChange={(v) => setForm({ ...form, prioritaet: v })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(PRIORITAET_LABELS).map(([v, l]) => (
+                      <SelectItem key={v} value={v}>{l}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setShowCreate(false)}>Abbrechen</Button>

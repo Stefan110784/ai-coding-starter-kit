@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, ok } from "@/lib/api-helpers";
 import { mitarbeiterFuerBenutzer } from "@/lib/benutzer";
-import { AKTIVE_STATUS, arbeitsvorratDict, offeneBuchungen } from "@/lib/arbeitsvorrat";
+import { AKTIVE_STATUS, TAGESLISTE_ORDER, arbeitsvorratDict, offeneBuchungen } from "@/lib/arbeitsvorrat";
 
 /** Alle aktiven Aufträge (Toggle-Ansicht; V2: GET /api/arbeitsvorrat/alle). */
 export async function GET(req: NextRequest) {
@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
 
   const auftraege = await prisma.auftrag.findMany({
     where: { status: { in: AKTIVE_STATUS } },
-    orderBy: { nummer: "asc" },
+    orderBy: TAGESLISTE_ORDER,
   });
 
   const eingebucht = await offeneBuchungen(mitarbeiter.id);

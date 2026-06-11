@@ -1,8 +1,18 @@
 /** Arbeitsvorrat-Helfer (V2: api/arbeitsvorrat.py). */
 import { prisma } from "@/lib/prisma";
-import type { Auftrag, Auftragsstatus } from "@/generated/prisma";
+import type { Auftrag, Auftragsstatus, Prisma } from "@/generated/prisma";
 
 export const AKTIVE_STATUS: Auftragsstatus[] = ["offen", "kommissioniert", "laeuft", "pausiert"];
+
+/**
+ * Tagesliste-Sortierung: Priorität absteigend, dann frühester zugesagter
+ * Termin (Aufträge ohne Termin zuletzt), dann Nummer (stabil).
+ */
+export const TAGESLISTE_ORDER: Prisma.AuftragOrderByWithRelationInput[] = [
+  { prioritaet: "desc" },
+  { promisedDate: { sort: "asc", nulls: "last" } },
+  { nummer: "asc" },
+];
 
 export function arbeitsvorratDict(a: Auftrag, eingebucht: boolean) {
   return {
@@ -13,6 +23,7 @@ export function arbeitsvorratDict(a: Auftrag, eingebucht: boolean) {
     status: a.status,
     liefertermin: a.liefertermin,
     promisedDate: a.promisedDate,
+    prioritaet: a.prioritaet,
     eingebucht,
   };
 }

@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, ok } from "@/lib/api-helpers";
 import { mitarbeiterFuerBenutzer } from "@/lib/benutzer";
-import { AKTIVE_STATUS, arbeitsvorratDict, offeneBuchungen } from "@/lib/arbeitsvorrat";
+import { AKTIVE_STATUS, TAGESLISTE_ORDER, arbeitsvorratDict, offeneBuchungen } from "@/lib/arbeitsvorrat";
 
 /** Mein Arbeitsvorrat: zugewiesene P/L-Aufträge + alle S-Aufträge (V2: GET /api/arbeitsvorrat). */
 export async function GET(req: NextRequest) {
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
         { team: { some: { mitarbeiterId: mitarbeiter.id } } },
       ],
     },
-    orderBy: { nummer: "asc" },
+    orderBy: TAGESLISTE_ORDER,
   });
 
   const eingebucht = await offeneBuchungen(mitarbeiter.id);

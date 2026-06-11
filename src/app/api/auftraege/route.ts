@@ -11,6 +11,7 @@ const createSchema = z.object({
   liefertermin: z.string().optional(),
   abNummer: z.string().optional(),
   notiz: z.string().optional(),
+  prioritaet: z.number().int().min(0).max(2).optional(),
   positionen: z
     .array(
       z.object({

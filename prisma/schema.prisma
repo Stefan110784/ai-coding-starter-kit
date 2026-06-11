@@ -192,6 +192,8 @@ model Auftrag {
   stalledMissingParts Boolean        @default(false) @map("stalled_missing_parts")
   stallDays           Int?           @map("stall_days")
   kpiAusgeschlossen   Boolean        @default(false) @map("kpi_ausgeschlossen")
+  // Tagesliste-Queue: 0 = Normal, 1 = Hoch, 2 = Dringend (absteigend sortiert)
+  prioritaet          Int            @default(0)
   erstelltAm          DateTime       @default(now()) @map("erstellt_am")
 
   positionen          AuftragPosition[]

@@ -5,6 +5,7 @@ import useSWR, { mutate } from "swr";
 import { toast } from "sonner";
 import { LogIn, LogOut } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { PrioritaetBadge } from "@/components/prioritaet-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,6 +19,7 @@ interface VorratAuftrag {
   menge: number;
   status: string;
   liefertermin?: string | null;
+  prioritaet?: number;
   eingebucht: boolean;
 }
 
@@ -101,6 +103,7 @@ export function ArbeitsvorratBucket() {
                 <span className="font-mono font-medium">{a.nummer}</span>
                 <span className="ml-2 truncate text-sm text-muted-foreground">{a.bezeichnung}</span>
                 <div className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+                  <PrioritaetBadge prioritaet={a.prioritaet} />
                   <Badge variant={a.status === "laeuft" ? "default" : "secondary"} className="text-[10px]">
                     {STATUS_LABEL[a.status] ?? a.status}
                   </Badge>

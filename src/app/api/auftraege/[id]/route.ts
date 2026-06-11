@@ -33,6 +33,7 @@ const updateSchema = z.object({
   kpiAusgeschlossen: z.boolean().optional(),
   promisedDate: z.string().datetime().optional().nullable(),
   promisedDateManuell: z.boolean().optional(),
+  prioritaet: z.number().int().min(0).max(2).optional(),
 });
 
 type Params = { params: Promise<{ id: string }> };

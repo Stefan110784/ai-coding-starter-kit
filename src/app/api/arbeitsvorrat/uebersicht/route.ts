@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireRecht, ok } from "@/lib/api-helpers";
-import { AKTIVE_STATUS } from "@/lib/arbeitsvorrat";
+import { AKTIVE_STATUS, TAGESLISTE_ORDER } from "@/lib/arbeitsvorrat";
 
 /** Alle aktiven P/L-Aufträge mit Zuweisungen — Admin-Übersicht (V2: /uebersicht). */
 export async function GET(req: NextRequest) {
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
         orderBy: { mitarbeiter: { name: "asc" } },
       },
     },
-    orderBy: { nummer: "asc" },
+    orderBy: TAGESLISTE_ORDER,
   });
 
   return ok(
