@@ -91,6 +91,8 @@ type Auftrag = {
   promisedDate?: string | null;
   stalledMissingParts?: boolean;
   reworkRequired?: boolean;
+  kundenauftragId?: string | null;
+  kundenauftrag?: { id: string; nr: number; status: string; kunde?: { name: string } } | null;
   _count?: { abweichungen: number };
   status: string;
   start?: string | null;
@@ -144,6 +146,11 @@ export default function AuftraegePage() {
   const darfStatus = hatRecht("auftraege.status");
   const darfVerwalten = hatRecht("verwaltung");
   const istAdmin = me?.rolle === "admin";
+
+  // Offene Kundenaufträge für die Verknüpfung (KF3-37) — nur mit Vertriebsrecht
+  const { data: kundenauftraege } = useSWR<
+    Array<{ id: string; nr: number; kunde?: { name: string } }>
+  >(hatRecht("vertrieb") ? "/api/kundenauftraege?status=offen" : null, fetcher);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("alle");
@@ -400,7 +407,7 @@ export default function AuftraegePage() {
                 {/* pr-8 hält Abstand zum Schließen-X des Sheets */}
                 <div className="flex items-center justify-between gap-2 pr-8">
                   <SheetTitle className="font-mono text-lg">{detail.nummer}</SheetTitle>
-                  <Button size="sm" variant="outline" onClick={() => { setEditMode(!editMode); setEditForm({ bezeichnung: detail.bezeichnung, menge: detail.menge, kunde: detail.kunde, liefertermin: detail.liefertermin, abNummer: detail.abNummer, notiz: detail.notiz, prioritaet: detail.prioritaet }); }}>
+                  <Button size="sm" variant="outline" onClick={() => { setEditMode(!editMode); setEditForm({ bezeichnung: detail.bezeichnung, menge: detail.menge, kunde: detail.kunde, liefertermin: detail.liefertermin, abNummer: detail.abNummer, notiz: detail.notiz, prioritaet: detail.prioritaet, kundenauftragId: detail.kundenauftragId ?? null }); }}>
                     <Pencil className="size-3 mr-1" />{editMode ? "Abbrechen" : "Bearbeiten"}
                   </Button>
                 </div>
@@ -456,6 +463,27 @@ export default function AuftraegePage() {
                       </SelectContent>
                     </Select>
                   </div>
+                  {hatRecht("vertrieb") && (
+                    <div className="space-y-1.5">
+                      <Label>Kundenauftrag</Label>
+                      <Select
+                        value={editForm.kundenauftragId ?? "keiner"}
+                        onValueChange={(v) => setEditForm({ ...editForm, kundenauftragId: v === "keiner" ? null : v })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="– keiner –" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="keiner">– keiner –</SelectItem>
+                          {(Array.isArray(kundenauftraege) ? kundenauftraege : []).map((ka) => (
+                            <SelectItem key={ka.id} value={ka.id}>
+                              KA-{ka.nr} · {ka.kunde?.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <div className="space-y-1.5">
                     <Label>Notiz</Label>
                     <Textarea value={editForm.notiz ?? ""} onChange={(e) => setEditForm({ ...editForm, notiz: e.target.value })} rows={3} />
@@ -474,6 +502,12 @@ export default function AuftraegePage() {
                     <span>{detail.menge}</span>
                     <span className="text-muted-foreground">Kunde</span>
                     <span>{detail.kunde ?? "–"}</span>
+                    <span className="text-muted-foreground">Kundenauftrag</span>
+                    <span>
+                      {detail.kundenauftrag
+                        ? `KA-${detail.kundenauftrag.nr} · ${detail.kundenauftrag.kunde?.name ?? ""}`
+                        : "–"}
+                    </span>
                     <span className="text-muted-foreground">Liefertermin</span>
                     <span>{detail.liefertermin ?? "–"}</span>
                     <span className="text-muted-foreground">AB-Nummer</span>

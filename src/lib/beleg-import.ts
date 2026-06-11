@@ -152,8 +152,23 @@ export async function verarbeiteBeleg(
   const lauf = () => prisma.$transaction(async (tx) => {
     const vorhanden = await tx.auftrag.findFirst({ where: { abNummer: ab } });
     if (vorhanden) {
+      // Ist der Auftrag mit einem Kundenauftrag verknüpft (KF3-37), ist die
+      // Relation für den Kundennamen führend — der Parser-Wert wird nicht
+      // mehr übernommen; eine Abweichung landet als Konflikt im Audit.
+      const kundeFuehrend = vorhanden.kundenauftragId !== null;
+      if (kundeFuehrend && daten.kunde && daten.kunde !== vorhanden.kunde) {
+        await auditEintrag(tx, {
+          entitaet: "auftrag",
+          entitaetId: vorhanden.id,
+          aktion: "kundeKonflikt",
+          altWert: vorhanden.kunde,
+          neuWert: daten.kunde,
+          kontext: { abNummer: ab, hinweis: "Beleg nennt anderen Kunden als der Kundenauftrag" },
+          benutzerId: null,
+        });
+      }
       const update = {
-        kunde: daten.kunde,
+        ...(kundeFuehrend ? {} : { kunde: daten.kunde }),
         liefertermin: daten.liefertermin,
         menge,
         ...(produktgruppe && !vorhanden.produktManuell ? { bezeichnung: produktgruppe } : {}),

@@ -60,6 +60,13 @@ export const RECHTE_KATALOG: RechteGruppe[] = [
     label: "Einkauf / Bestellungen",
     funktionen: [{ key: "einkauf.bestellen", label: "Bestellungen anlegen / ändern" }],
   },
+  {
+    key: "vertrieb",
+    label: "Vertrieb / Kundenaufträge",
+    funktionen: [
+      { key: "vertrieb.bearbeiten", label: "Kunden & Kundenaufträge anlegen / ändern / freigeben" },
+    ],
+  },
   { key: "auswertung", label: "Auswertung", funktionen: [] },
   { key: "verwaltung", label: "Verwaltung (Stammdaten & Benutzer)", funktionen: [] },
 ];

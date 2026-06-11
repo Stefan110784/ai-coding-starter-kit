@@ -77,3 +77,25 @@ describe("kpiFuerZeitraum", () => {
     expect(kpi.leadTimeDaysAvg).toBe(3);
   });
 });
+
+describe("berechneKundenLiefertreue (KF3-37)", async () => {
+  const { berechneKundenLiefertreue } = await import("@/lib/auswertung");
+
+  it("pünktlich = geliefert am/vor dem Wunschtermin (Berlin-Tag)", () => {
+    const e = berechneKundenLiefertreue([
+      { wunschtermin: new Date("2026-06-15T00:00:00Z"), geliefertAm: new Date("2026-06-15T16:00:00Z") },
+      { wunschtermin: new Date("2026-06-15T00:00:00Z"), geliefertAm: new Date("2026-06-16T06:00:00Z") },
+    ]);
+    expect(e.basis).toBe(2);
+    expect(e.prozent).toBe(50);
+  });
+
+  it("ohne Wunschtermin oder Lieferdatum → zählt nicht; leere Basis → null", () => {
+    const e = berechneKundenLiefertreue([
+      { wunschtermin: null, geliefertAm: new Date("2026-06-15") },
+      { wunschtermin: new Date("2026-06-15"), geliefertAm: null },
+    ]);
+    expect(e.basis).toBe(0);
+    expect(e.prozent).toBeNull();
+  });
+});

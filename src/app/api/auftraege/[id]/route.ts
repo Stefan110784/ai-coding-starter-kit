@@ -55,6 +55,8 @@ const updateSchema = z.object({
   promisedDate: z.string().datetime().optional().nullable(),
   promisedDateManuell: z.boolean().optional(),
   prioritaet: z.number().int().min(0).max(2).optional(),
+  // Vertriebs-Verknüpfung (KF3-37): null = lösen
+  kundenauftragId: z.string().uuid().optional().nullable(),
 });
 
 type Params = { params: Promise<{ id: string }> };
@@ -74,6 +76,9 @@ export async function GET(req: NextRequest, { params }: Params) {
       zuweisungen: { include: { mitarbeiter: true } },
       team: { include: { mitarbeiter: { select: { id: true, name: true, kuerzel: true } } } },
       packmasse: { orderBy: { position: "asc" } },
+      kundenauftrag: {
+        select: { id: true, nr: true, status: true, kunde: { select: { name: true } } },
+      },
     },
   });
 
@@ -89,6 +94,8 @@ class MangelError extends Error {
 
 /** Hartes Endprüf-Gate (ISO 8.6, KF3-26): bewusst KEINE force-Umgehung. */
 class PruefungFehltError extends Error {}
+
+class KundenauftragUngueltig extends Error {}
 
 async function ersterAktiverLagerortId(tx: Prisma.TransactionClient): Promise<string | null> {
   const erster = await tx.lagerort.findFirst({ where: { aktiv: true }, orderBy: { name: "asc" } });
@@ -122,7 +129,44 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       const auftrag = await tx.auftrag.findUnique({ where: { id } });
       if (!auftrag) throw new MangelNotFound();
 
-      const data: Prisma.AuftragUpdateInput = { ...felder };
+      const data: Prisma.AuftragUncheckedUpdateInput = { ...felder };
+
+      // --- Kundenauftrag verknüpfen/lösen (KF3-37) ---
+      if ("kundenauftragId" in parsed.data && felder.kundenauftragId !== auftrag.kundenauftragId) {
+        if (felder.kundenauftragId) {
+          const ka = await tx.kundenauftrag.findUnique({
+            where: { id: felder.kundenauftragId },
+            include: { kunde: { select: { name: true } } },
+          });
+          if (!ka || !ka.aktiv) throw new KundenauftragUngueltig("nicht gefunden");
+          if (!["neu", "freigegeben"].includes(ka.status)) {
+            throw new KundenauftragUngueltig(`Status ${ka.status} erlaubt keine Verknüpfung`);
+          }
+          // Kundennamen nachziehen — die Relation ist ab jetzt führend
+          data.kunde = ka.kunde.name;
+          await auditEintrag(tx, {
+            entitaet: "auftrag",
+            entitaetId: id,
+            aktion: "kundenauftragVerknuepft",
+            neuWert: `KA-${ka.nr}`,
+            kontext: { nummer: auftrag.nummer },
+            benutzerId: auth.benutzer.id,
+          });
+        } else {
+          // Lösen: kunde-String bleibt als Historie stehen
+          const altKa = auftrag.kundenauftragId
+            ? await tx.kundenauftrag.findUnique({ where: { id: auftrag.kundenauftragId } })
+            : null;
+          await auditEintrag(tx, {
+            entitaet: "auftrag",
+            entitaetId: id,
+            aktion: "kundenauftragGeloest",
+            altWert: altKa ? `KA-${altKa.nr}` : null,
+            kontext: { nummer: auftrag.nummer },
+            benutzerId: auth.benutzer.id,
+          });
+        }
+      }
 
       // --- Auto-Ableitung promisedDate aus Liefertermin (V2: auftraege.py:268-276) ---
       const effLiefertermin = lieferterminGeaendert ? (felder.liefertermin ?? null) : auftrag.liefertermin;
@@ -264,6 +308,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       result.materialInfo ? { ...result.updated, material: result.materialInfo } : result.updated
     );
   } catch (e) {
+    if (e instanceof KundenauftragUngueltig) {
+      return err(`Kundenauftrag: ${e.message}`, 400);
+    }
     if (e instanceof MangelError) {
       return NextResponse.json(
         {

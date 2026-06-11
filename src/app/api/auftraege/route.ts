@@ -15,6 +15,8 @@ const createSchema = z.object({
   abNummer: z.string().optional(),
   notiz: z.string().optional(),
   prioritaet: z.number().int().min(0).max(2).optional(),
+  // Vertriebs-Verknüpfung (KF3-37)
+  kundenauftragId: z.string().uuid().optional(),
   positionen: z
     .array(
       z.object({
@@ -75,6 +77,19 @@ export async function POST(req: NextRequest) {
     where: { nummer: data.nummer },
   });
   if (existing) return err("Auftragsnummer bereits vergeben", 409);
+
+  // Kundenauftrag-Verknüpfung (KF3-37): validieren + Kundennamen nachziehen
+  if (data.kundenauftragId) {
+    const ka = await prisma.kundenauftrag.findUnique({
+      where: { id: data.kundenauftragId },
+      include: { kunde: { select: { name: true } } },
+    });
+    if (!ka || !ka.aktiv) return err("Kundenauftrag nicht gefunden", 404);
+    if (!["neu", "freigegeben"].includes(ka.status)) {
+      return err(`Kundenauftrag: Status ${ka.status} erlaubt keine Verknüpfung`);
+    }
+    if (!data.kunde) data.kunde = ka.kunde.name;
+  }
 
   const anlegen = async () =>
     prisma.$transaction(async (tx) => {
