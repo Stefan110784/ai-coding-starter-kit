@@ -128,7 +128,7 @@ export function WareneingangDialog({ bestellung, open, onOpenChange, onDone }: W
         <DialogHeader>
           <DialogTitle>Wareneingang B-{bestellung?.nr}</DialogTitle>
           <DialogDescription>
-            Restmengen sind vorbelegt; Eingangsprüfung je Position (ISO 8.4). Bei „abweichend"
+            Restmengen sind vorbelegt; Eingangsprüfung je Position (ISO 8.4). Bei „abweichend“
             entsteht automatisch eine Lieferanten-Reklamation — Buchung auf das Sperrlager empfohlen.
           </DialogDescription>
         </DialogHeader>

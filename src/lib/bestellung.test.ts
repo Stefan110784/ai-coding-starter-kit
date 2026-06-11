@@ -60,13 +60,13 @@ describe("vorschlagsmenge", () => {
 });
 
 describe("eoqAusLink", () => {
-  it("berechnet EOQ aus Jahresbedarf, Bestellkosten und Preis×Zinssatz", () => {
-    // D=1200, S=50, H=2*0.25=0.5 → sqrt(2*1200*50/0.5) ≈ 489.9
-    const eoq = eoqAusLink({ jahresbedarf: 1200, bestellkosten: 50, lagerkostensatz: 0.25, einkaufspreis: 2 });
+  it("nutzt lagerkostensatz direkt als absoluten H-Wert (Stammdaten-Konvention)", () => {
+    // D=1200, S=50, H=0.5 → sqrt(2*1200*50/0.5) ≈ 489.9
+    const eoq = eoqAusLink({ jahresbedarf: 1200, bestellkosten: 50, lagerkostensatz: 0.5 });
     expect(eoq).toBeCloseTo(489.9, 1);
   });
   it("null bei unvollständigen Parametern", () => {
-    expect(eoqAusLink({ jahresbedarf: null, bestellkosten: 50, lagerkostensatz: 0.25, einkaufspreis: 2 })).toBeNull();
-    expect(eoqAusLink({ jahresbedarf: 1200, bestellkosten: 0, lagerkostensatz: 0.25, einkaufspreis: 2 })).toBeNull();
+    expect(eoqAusLink({ jahresbedarf: null, bestellkosten: 50, lagerkostensatz: 0.5 })).toBeNull();
+    expect(eoqAusLink({ jahresbedarf: 1200, bestellkosten: 0, lagerkostensatz: 0.5 })).toBeNull();
   });
 });

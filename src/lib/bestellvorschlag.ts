@@ -42,18 +42,19 @@ export function vorschlagsmenge(
   return Math.ceil(Math.max(eoq ?? 0, mindestmenge, luecke));
 }
 
-/** EOQ aus den Parametern eines Artikel-Lieferant-Links (H = Preis × Zinssatz). */
+/**
+ * EOQ aus den Parametern eines Artikel-Lieferant-Links. Konvention der
+ * Stammdaten (Lieferanten-Seite/Schema): `lagerkostensatz` ist der ABSOLUTE
+ * €-Betrag je Stück und Jahr (H), kein Prozentsatz.
+ */
 export function eoqAusLink(link: {
   jahresbedarf: number | null;
   bestellkosten: unknown;
   lagerkostensatz: unknown;
-  einkaufspreis: unknown;
 }): number | null {
   const D = link.jahresbedarf ?? 0;
   const S = Number(link.bestellkosten ?? 0);
-  const zins = Number(link.lagerkostensatz ?? 0);
-  const preis = Number(link.einkaufspreis ?? 0);
-  const H = preis * zins;
+  const H = Number(link.lagerkostensatz ?? 0);
   return calculateEOQ(D, S, H);
 }
 
