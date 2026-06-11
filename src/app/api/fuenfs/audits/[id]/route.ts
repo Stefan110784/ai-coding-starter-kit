@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRecht, err, ok, handlePrismaError } from "@/lib/api-helpers";
 import { auditEintrag } from "@/lib/audit";
 import { abschlussFehler, scoreProzent } from "@/lib/fuenfs";
+import * as storage from "@/lib/storage";
 
 const patchSchema = z
   .object({
@@ -94,13 +95,28 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   if ("status" in auth) return auth;
 
   const { id } = await params;
-  const audit = await prisma.fuenfSAudit.findUnique({ where: { id } });
-  if (!audit) return err("Audit nicht gefunden", 404);
-  if (audit.status === "abgeschlossen") {
-    return err("Abgeschlossene Audits sind ISO-Nachweis und nicht löschbar", 400);
-  }
   try {
-    await prisma.fuenfSAudit.delete({ where: { id } });
+    // Foto-Blobs VOR dem Cascade-Delete einsammeln — sonst bleiben sie als
+    // Leichen in der Ablage (Review-Befund); Statusbedingung im deleteMany
+    // schließt das Race mit einem parallelen Abschluss.
+    const fotos = await prisma.datei.findMany({
+      where: { fuenfsPosition: { auditId: id } },
+      select: { speicherpfad: true },
+    });
+    const res = await prisma.fuenfSAudit.deleteMany({ where: { id, status: "entwurf" } });
+    if (res.count === 0) {
+      const existiert = await prisma.fuenfSAudit.findUnique({ where: { id }, select: { id: true } });
+      return existiert
+        ? err("Abgeschlossene Audits sind ISO-Nachweis und nicht löschbar", 400)
+        : err("Audit nicht gefunden", 404);
+    }
+    for (const f of fotos) {
+      try {
+        await storage.loesche(f.speicherpfad);
+      } catch (e) {
+        console.error("[fuenfs] Foto-Ablage nicht löschbar:", f.speicherpfad, e);
+      }
+    }
     return ok({ ok: true });
   } catch (e) {
     return handlePrismaError(e);

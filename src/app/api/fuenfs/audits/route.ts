@@ -47,7 +47,16 @@ export async function POST(req: NextRequest) {
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) return err(parsed.error.issues[0]?.message ?? "Ungültige Eingabe");
 
-  const monat = parsed.data.monat ?? lokalDatum(new Date()).slice(0, 7);
+  const heuteMonat = lokalDatum(new Date()).slice(0, 7);
+  const monat = parsed.data.monat ?? heuteMonat;
+  // Nur aktueller Monat oder Vormonat (Nachholen) — keine Zukunfts-Audits
+  if (monat > heuteMonat) return err("Audits können nicht für künftige Monate angelegt werden");
+  const [hJ, hM] = heuteMonat.split("-").map(Number);
+  const vm = new Date(Date.UTC(hJ, hM - 2, 1));
+  const vormonat = `${vm.getUTCFullYear()}-${String(vm.getUTCMonth() + 1).padStart(2, "0")}`;
+  if (monat < vormonat) {
+    return err("Audits können höchstens für den Vormonat nachgeholt werden");
+  }
 
   try {
     const audit = await prisma.$transaction(async (tx) => {

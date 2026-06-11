@@ -77,3 +77,19 @@ describe("sollVorschlag", () => {
     expect(sollVorschlag([], "2026-06")).toBeNull();
   });
 });
+
+describe("Monatsgrenze (Review-Befund Paket 5)", () => {
+  it("teilt Parallelarbeit über die Monatsgrenze statt doppelt zu zählen", () => {
+    // Berlin: erste Buchung startet am 31.05. (21:00–02:00), zweite am
+    // 01.06. 00:00 (–02:00). Überlappung 2 h wird geteilt: Juni = 1 h.
+    const juni = teamAuftragsSekundenImMonat(
+      [
+        buchung({ id: "mai", start: new Date("2026-05-31T19:00:00Z"), ende: new Date("2026-06-01T00:00:00Z") }),
+        buchung({ id: "juni", auftragId: "a2", start: new Date("2026-05-31T22:00:00Z"), ende: new Date("2026-06-01T00:00:00Z") }),
+      ],
+      "2026-06",
+      NOW
+    );
+    expect(juni).toBe(1 * 3600);
+  });
+});

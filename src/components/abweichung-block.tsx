@@ -27,12 +27,14 @@ import {
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-export const ABWEICHUNG_TYP_LABEL: Record<string, string> = {
-  nacharbeit: "Nacharbeit",
-  ausschuss: "Ausschuss",
-  reklamationKunde: "Reklamation (Kunde)",
-  reklamationLieferant: "Reklamation (Lieferant)",
-};
+// Zentrale Label-Map (KF3-36-Review: vorher hier dupliziert und divergent);
+// Re-Export erhält bestehende Importe.
+export { ABWEICHUNG_TYP_LABEL } from "@/lib/abweichung-typen";
+import { ABWEICHUNG_TYP_LABEL } from "@/lib/abweichung-typen";
+
+// Im auftragsbezogenen Dialog wählbare Typen — 5S-Maßnahmen entstehen nur im
+// 5S-Audit und sind auftragslos
+const WAEHLBARE_TYPEN = Object.entries(ABWEICHUNG_TYP_LABEL).filter(([t]) => t !== "fuenfs");
 
 const STATUS_LABEL: Record<string, string> = {
   offen: "Offen",
@@ -184,7 +186,7 @@ export function AbweichungBlock({ auftragId }: { auftragId: string }) {
             <div key={a.id} className="rounded-md border p-2.5 space-y-1.5">
               <div className="flex flex-wrap items-center gap-1.5">
                 <Badge variant="secondary" className="text-[10px]">
-                  {ABWEICHUNG_TYP_LABEL[a.typ] ?? a.typ}
+                  {(ABWEICHUNG_TYP_LABEL as Record<string, string>)[a.typ] ?? a.typ}
                 </Badge>
                 {a.grund && <Badge variant="outline" className="text-[10px]">{a.grund.name}</Badge>}
                 {ueberfaellig && <Badge variant="destructive" className="text-[10px]">überfällig</Badge>}
@@ -231,7 +233,7 @@ export function AbweichungBlock({ auftragId }: { auftragId: string }) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {Object.entries(ABWEICHUNG_TYP_LABEL).map(([v, l]) => (
+                    {WAEHLBARE_TYPEN.map(([v, l]) => (
                       <SelectItem key={v} value={v}>{l}</SelectItem>
                     ))}
                   </SelectContent>

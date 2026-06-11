@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, err, ok } from "@/lib/api-helpers";
+import { hatRecht } from "@/lib/rechte";
 
 const createSchema = z.object({
   name: z.string().min(1),
@@ -24,6 +25,11 @@ export async function GET(req: NextRequest) {
     },
     orderBy: { name: "asc" },
   });
+  // wochenstunden ist Stammdatum der Soll-Pflege (KF3-35) — nur fürs
+  // Verwaltungsrecht sichtbar, nicht für alle Angemeldeten
+  if (!hatRecht(auth.benutzer, "verwaltung")) {
+    return ok(mitarbeiter.map(({ wochenstunden: _w, ...rest }) => rest));
+  }
   return ok(mitarbeiter);
 }
 

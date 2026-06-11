@@ -150,8 +150,21 @@ export default function FuenfsAuditPage({ params }: { params: Promise<{ id: stri
     mutate((k) => typeof k === "string" && k.startsWith("/api/fuenfs"));
   }
 
-  if (isLoading || !audit) {
+  if (isLoading) {
     return <div className="space-y-3">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>;
+  }
+  if (!audit) {
+    // Fehler-/404-Zustand statt Dauer-Skeleton (Review-Befund)
+    return (
+      <Card>
+        <CardContent className="space-y-2 py-8 text-center text-sm text-muted-foreground">
+          <p>{(data as { error?: string } | undefined)?.error ?? "Audit nicht gefunden"}</p>
+          <Button variant="outline" asChild>
+            <Link href="/fuenfs">Zurück zur 5S-Übersicht</Link>
+          </Button>
+        </CardContent>
+      </Card>
+    );
   }
 
   const kategorien = ["seiri", "seiton", "seiso", "seiketsu", "shitsuke"] as const;

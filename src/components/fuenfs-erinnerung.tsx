@@ -10,9 +10,12 @@ import { useMe } from "@/hooks/use-me";
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 function berlinMonat(versatz = 0): string {
-  const d = new Date();
-  d.setMonth(d.getMonth() + versatz);
-  return d.toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }).slice(0, 7);
+  // Auf den 1. des Monats ankern — setMonth auf dem heutigen Datum läuft an
+  // Monatsenden über (31.03. − 1 Monat → „Feb 31“ → März; Review-Befund)
+  const heute = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+  const [jahr, monat] = heute.split("-").map(Number);
+  const d = new Date(Date.UTC(jahr, monat - 1 + versatz, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
 /**

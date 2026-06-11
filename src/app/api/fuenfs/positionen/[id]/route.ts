@@ -24,22 +24,24 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const parsed = patchSchema.safeParse(body);
   if (!parsed.success) return err(parsed.error.issues[0]?.message ?? "Ungültige Eingabe");
 
-  const position = await prisma.fuenfSAuditPosition.findUnique({
-    where: { id },
-    include: { audit: { select: { status: true } } },
-  });
-  if (!position) return err("Position nicht gefunden", 404);
-  if (position.audit.status === "abgeschlossen") {
-    return err("Audit ist abgeschlossen und unveränderbar", 400);
-  }
-
   const data: Record<string, unknown> = { ...parsed.data };
   // n. a. löscht eine etwaige Bewertung (Score-Konsistenz)
   if (parsed.data.nichtAnwendbar === true) data.punkte = null;
 
   try {
-    const neu = await prisma.fuenfSAuditPosition.update({ where: { id }, data });
-    return ok(neu);
+    // Bedingtes Update statt Check-then-Act: ein parallel abgeschlossenes
+    // Audit kann zwischen Prüfung und Update einfrieren (Review-Befund)
+    const res = await prisma.fuenfSAuditPosition.updateMany({
+      where: { id, audit: { status: "entwurf" } },
+      data,
+    });
+    if (res.count === 0) {
+      const existiert = await prisma.fuenfSAuditPosition.findUnique({ where: { id }, select: { id: true } });
+      return existiert
+        ? err("Audit ist abgeschlossen und unveränderbar", 400)
+        : err("Position nicht gefunden", 404);
+    }
+    return ok(await prisma.fuenfSAuditPosition.findUnique({ where: { id } }));
   } catch (e) {
     return handlePrismaError(e);
   }

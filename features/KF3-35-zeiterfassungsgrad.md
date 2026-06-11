@@ -24,3 +24,9 @@ Stempeluhr/Anwesenheitserfassung (V2-Non-Goal), Abwesenheitsmodell, Feiertagsber
 - [ ] API-Response enthält strukturell keine Personenwerte (Test)
 - [ ] Korridor 70–85 sichtbar (Karte + Verlaufsband), >100 % wird angezeigt
 - [ ] Nicht-auftragsbezogene Kategorien zählen nicht in den Zähler
+
+## Review-Fixes (2026-06-11, adversarialer Review)
+
+- **Loader lädt nicht mehr die ganze Tabelle**: grober SQL-Range über den Start (±3 Tage Puffer), Verlauf mit EINEM Read fürs ganze Fenster (`zeiterfassungsgradVerlauf`) statt bis zu 24 parallelen Volltabellen-Reads.
+- **Monatsgrenzen-Doppelzählung behoben**: anteilige Aufteilung läuft wie `mitarbeiterReport` über alle Buchungen, der Monatsfilter greift erst beim Summieren (Test fixiert die Wanduhr-Invariante).
+- `wochenstunden` in GET /api/mitarbeiter nur noch mit Verwaltungsrecht sichtbar.

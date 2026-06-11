@@ -34,15 +34,19 @@ function imMonat(start: Date | null, monat: string): boolean {
  * Team-Auftragssekunden eines Monats — reine Funktion. Buchungen ohne
  * auftragsbezogene Kategorie müssen vorab ausgefiltert sein (Loader).
  * Gibt NUR die Teamsumme zurück (keine Personenwerte).
+ *
+ * Reihenfolge wie mitarbeiterReport (Review-Befund): die anteilige Aufteilung
+ * läuft über ALLE übergebenen Buchungen eines Mitarbeiters, der Monatsfilter
+ * greift erst beim Summieren — sonst zählt Parallelarbeit über die
+ * Monatsgrenze doppelt (Wanduhr-Invariante aus zeit.ts).
  */
 export function teamAuftragsSekundenImMonat(
   buchungen: Buchung[],
   monat: string,
   now: Date
 ): number {
-  const relevante = buchungen.filter((b) => imMonat(b.start, monat));
   const jeMitarbeiter = new Map<string, Buchung[]>();
-  for (const b of relevante) {
+  for (const b of buchungen) {
     if (b.istKorrektur) continue;
     const liste = jeMitarbeiter.get(b.mitarbeiterId) ?? [];
     liste.push(b);
@@ -51,13 +55,14 @@ export function teamAuftragsSekundenImMonat(
 
   let summe = 0;
   for (const liste of jeMitarbeiter.values()) {
-    for (const sekunden of anteiligeDauer(liste, now).values()) {
-      summe += sekunden;
+    const anteile = anteiligeDauer(liste, now);
+    for (const b of liste) {
+      if (imMonat(b.start, monat)) summe += anteile.get(b.id) ?? 0;
     }
   }
   // Korrekturen (±Minuten) wie gebuchteZeitJeAuftrag separat addieren
-  for (const b of relevante) {
-    if (b.istKorrektur && b.korrekturMinuten != null) {
+  for (const b of buchungen) {
+    if (b.istKorrektur && b.korrekturMinuten != null && imMonat(b.start, monat)) {
       summe += b.korrekturMinuten * 60;
     }
   }
@@ -99,30 +104,71 @@ export function sollVorschlag(wochenstundenListe: number[], monat: string): numb
   return Math.round((summe / 5) * werktage * 10) / 10;
 }
 
-/** Loader: Grad für einen Monat (lädt nur auftragsbezogene Buchungen). */
+/**
+ * Buchungen eines Monatsfensters laden (nur auftragsbezogene Kategorien).
+ * Grober SQL-Range über den Start (±3 Tage Puffer für Nacht-/Berlin-Fälle und
+ * die monatsübergreifende Aufteilung) statt Volltabellen-Read (Review-Befund);
+ * die exakte Berlin-Tageszuordnung entscheidet in JS.
+ */
+async function ladeBuchungen(db: Db, vonMonat: string, bisMonat: string): Promise<Buchung[]> {
+  const von = new Date(`${vonMonat}-01T00:00:00Z`);
+  von.setUTCDate(von.getUTCDate() - 3);
+  const [bJahr, bMonat] = bisMonat.split("-").map(Number);
+  const bis = new Date(Date.UTC(bJahr, bMonat, 1)); // 1. des Folgemonats
+  bis.setUTCDate(bis.getUTCDate() + 3);
+
+  return db.auftragszeit.findMany({
+    where: {
+      start: { gte: von, lt: bis },
+      OR: [{ kategorieId: null }, { kategorie: { auftragsbezogen: true } }],
+    },
+    select: {
+      id: true,
+      mitarbeiterId: true,
+      auftragId: true,
+      start: true,
+      ende: true,
+      istNachtrag: true,
+      istKorrektur: true,
+      korrekturMinuten: true,
+    },
+  });
+}
+
+/** Loader: Grad für einen Monat. */
 export async function zeiterfassungsgradFuerMonat(
   db: Db,
   monat: string,
   now: Date = new Date()
 ): Promise<Zeiterfassungsgrad> {
   const [buchungen, soll] = await Promise.all([
-    db.auftragszeit.findMany({
-      where: {
-        OR: [{ kategorieId: null }, { kategorie: { auftragsbezogen: true } }],
-      },
-      select: {
-        id: true,
-        mitarbeiterId: true,
-        auftragId: true,
-        start: true,
-        ende: true,
-        istNachtrag: true,
-        istKorrektur: true,
-        korrekturMinuten: true,
-      },
-    }),
+    ladeBuchungen(db, monat, monat),
     db.zeitSollMonat.findUnique({ where: { monat } }),
   ]);
   const ist = teamAuftragsSekundenImMonat(buchungen, monat, now);
   return berechneZeiterfassungsgrad(monat, ist, soll?.sollStunden ?? null);
+}
+
+/**
+ * Loader: Verlauf über N Monate — EIN Buchungs-Read für das ganze Fenster
+ * statt einem je Monat (Review-Befund: vorher bis zu 24 Volltabellen-Reads).
+ */
+export async function zeiterfassungsgradVerlauf(
+  db: Db,
+  monate: string[],
+  now: Date = new Date()
+): Promise<Zeiterfassungsgrad[]> {
+  if (monate.length === 0) return [];
+  const [buchungen, solls] = await Promise.all([
+    ladeBuchungen(db, monate[0], monate[monate.length - 1]),
+    db.zeitSollMonat.findMany({ where: { monat: { in: monate } } }),
+  ]);
+  const sollJeMonat = new Map(solls.map((s) => [s.monat, s.sollStunden]));
+  return monate.map((monat) =>
+    berechneZeiterfassungsgrad(
+      monat,
+      teamAuftragsSekundenImMonat(buchungen, monat, now),
+      sollJeMonat.get(monat) ?? null
+    )
+  );
 }

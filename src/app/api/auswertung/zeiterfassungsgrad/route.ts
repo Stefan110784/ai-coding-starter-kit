@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireRecht, err, ok } from "@/lib/api-helpers";
-import { zeiterfassungsgradFuerMonat } from "@/lib/zeiterfassungsgrad";
+import { zeiterfassungsgradFuerMonat, zeiterfassungsgradVerlauf } from "@/lib/zeiterfassungsgrad";
 import { lokalDatum } from "@/lib/auswertung";
 
 const MONAT_RX = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -30,14 +30,14 @@ export async function GET(req: NextRequest) {
       const m = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
       liste.push(m);
     }
-    const verlauf = await Promise.all(
-      liste.map(async (m) => ({
-        ...(await zeiterfassungsgradFuerMonat(prisma, m)),
-        label: `${m.slice(5)}/${m.slice(0, 4)}`,
-        laufend: m === heuteMonat,
+    const verlauf = await zeiterfassungsgradVerlauf(prisma, liste);
+    return ok(
+      verlauf.map((g) => ({
+        ...g,
+        label: `${g.monat.slice(5)}/${g.monat.slice(0, 4)}`,
+        laufend: g.monat === heuteMonat,
       }))
     );
-    return ok(verlauf);
   }
 
   const monat = req.nextUrl.searchParams.get("monat") ?? heuteMonat;

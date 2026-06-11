@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, err, ok, handlePrismaError } from "@/lib/api-helpers";
 import { auditEintrag, auditFeldDiff } from "@/lib/audit";
+import { hatRecht } from "@/lib/rechte";
 import { ABWEICHUNG_TYPEN } from "@/lib/abweichung-typen";
 
 /** Abweichungen / Minimal-CAPA (ISO 8.7, 10.2; KF3-27). */
@@ -67,6 +68,12 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) return err(parsed.error.issues[0]?.message ?? "Ungültige Eingabe");
+
+  // 5S-Maßnahmen sind Auditoren-Arbeit (KF3-36) — Melden der übrigen Typen
+  // bleibt für alle Angemeldeten offen
+  if (parsed.data.typ === "fuenfs" && !hatRecht(auth.benutzer, "fuenfs.audit")) {
+    return err("5S-Maßnahmen erfordern das Recht fuenfs.audit", 403);
+  }
 
   const { faelligAm, ...data } = parsed.data;
 

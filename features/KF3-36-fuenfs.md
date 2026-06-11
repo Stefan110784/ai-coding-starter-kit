@@ -21,3 +21,12 @@ Tägliche 5-Minuten-Routinen (Kap. 5: „sonst kippt 5S von Kultur zu Bürokrati
 - [ ] Trend je Bereich über Monate + Pareto der 5S-Gründe
 - [ ] Soll-Zustand-Fotos je Bereich (append-only Standard-Galerie)
 - [ ] Dashboard erinnert an ausstehende Audits (abgeleitet, ohne Cron)
+
+## Review-Fixes (2026-06-11, adversarialer Review)
+
+- 5S-Erinnerung: Monatsrechnung auf den 1. geankert (setMonth-Überlauf meldete an 5–6 Monatsend-Tagen/Jahr fälschlich „überfällig“).
+- Audit-Anlage nur für aktuellen Monat oder Vormonat (kein Zukunfts-/Alt-Audit).
+- Race-Schutz: Positions-Updates und Audit-DELETE laufen als bedingte Writes (`status=entwurf`) — ein paralleler Abschluss friert wirklich ein.
+- Audit-DELETE räumt Foto-Blobs in der Ablage auf (vorher Storage-Leichen durch Cascade).
+- Rechte: `/api/dateien/[id]` mit derselben Bezugs-Weiche wie `/api/fotos/[id]` (5S-Fotos waren mit nur „auftraege“-Recht abrufbar); `POST /api/abweichungen` verlangt für typ fuenfs das Auditoren-Recht.
+- Maßnahmen-Überfälligkeit per Berlin-Tagesvergleich; zentrale Typ-Label-Map (`abweichung-typen.ts`) statt Duplikat; Auditseite zeigt Fehlerzustand statt Dauer-Skeleton.

@@ -257,8 +257,13 @@ export default function FuenfsPage() {
                   </TableHeader>
                   <TableBody>
                     {massnahmen.map((m) => {
+                      // Tagesvergleich Europe/Berlin (Konvention KF3-27): am
+                      // Fälligkeitstag selbst ist die Maßnahme nicht überfällig
+                      const heuteTag = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
                       const ueberfaellig =
-                        m.status !== "abgeschlossen" && m.faelligAm && new Date(m.faelligAm) < new Date();
+                        m.status !== "abgeschlossen" &&
+                        m.faelligAm &&
+                        new Date(m.faelligAm).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }) < heuteTag;
                       return (
                         <TableRow key={m.id}>
                           <TableCell className="max-w-md text-sm">{m.beschreibung}</TableCell>
