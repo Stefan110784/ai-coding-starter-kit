@@ -72,6 +72,7 @@ model Benutzer {
   abweichungenErfasst  Abweichung[]
   bestellungenAngelegt Bestellung[]
   preisAenderungen     ArtikelLieferantPreis[]
+  kundenauftraege      Kundenauftrag[]
 
   @@map("benutzer")
 }
@@ -172,6 +173,71 @@ model StuecklistePosition {
   @@map("stueckliste_position")
 }
 
+// ─── V3 NEU: Vertrieb / Kundenauftrag (Anforderung Kap. 6; KF3-37) ────────────
+
+/// Kundenstamm — bewusst minimal: CAS genesisWorld wird führend für Kunden/
+/// Kontakte (KF3-38), KIMA braucht nur die Identität. Soft-Delete statt
+/// Löschen (aktiv), Zuordnung später ausschließlich über casGuid.
+model Kunde {
+  id         String   @id @default(uuid())
+  // Anzeige "K-1001" (Muster Bestellung.nr)
+  nr         Int      @unique @default(autoincrement())
+  name       String
+  notiz      String?
+  aktiv      Boolean  @default(true)
+  casGuid    String?  @unique @map("cas_guid")
+  // Datenhoheits-Marker: "manuell" | "migration" | "cas" — der spätere Sync
+  // darf nur quelle="cas" feldführend überschreiben
+  quelle     String   @default("manuell")
+  erstelltAm DateTime @default(now()) @map("erstellt_am")
+
+  kundenauftraege Kundenauftrag[]
+
+  @@index([name])
+  @@map("kunde")
+}
+
+enum KundenauftragStatus {
+  neu // CAS-Phase-1 erzeugt genau diesen Status; Freigabe bleibt manuell
+  freigegeben
+  geliefert
+  storniert
+}
+
+/// Vertriebs-Schicht über den Fertigungsaufträgen: schließt die Kette
+/// Kundenauftrag → Fertigung → Material → Lieferung und macht Liefertreue
+/// Ende-zu-Ende gegen den Kundenwunschtermin messbar.
+model Kundenauftrag {
+  id             String              @id @default(uuid())
+  nr             Int                 @unique @default(autoincrement()) // "KA-1001"
+  kundeId        String              @map("kunde_id")
+  status         KundenauftragStatus @default(neu)
+  bezeichnung    String?
+  // Bestellnummer des Kunden / Referenz auf die CAS-Verkaufschance
+  bestellNrKunde String?             @map("bestell_nr_kunde")
+  // Messlatte der Ende-zu-Ende-Liefertreue
+  wunschtermin   DateTime?
+  // Von uns bestätigter Termin — Rückkanal-Feld für KF3-39; wird NIE
+  // automatisch aus Fertigungsauftrags-Terminen befüllt (Datenhoheit)
+  bestaetigtTermin DateTime?         @map("bestaetigt_termin")
+  geliefertAm    DateTime?           @map("geliefert_am")
+  casGuid        String?             @unique @map("cas_guid")
+  quelle         String              @default("manuell")
+  notiz          String?
+  aktiv          Boolean             @default(true)
+  erstelltVonId  String?             @map("erstellt_von_id")
+  erstelltAm     DateTime            @default(now()) @map("erstellt_am")
+
+  // Restrict: Kunde mit Aufträgen ist nie löschbar (nur aktiv=false)
+  kunde       Kunde     @relation(fields: [kundeId], references: [id])
+  erstelltVon Benutzer? @relation(fields: [erstelltVonId], references: [id], onDelete: SetNull)
+  auftraege   Auftrag[]
+
+  @@index([status])
+  @@index([kundeId])
+  @@map("kundenauftrag")
+}
+
 // ─── Aufträge ─────────────────────────────────────────────────────────────────
 
 model Auftrag {
@@ -207,9 +273,12 @@ model Auftrag {
   prioritaet          Int            @default(0)
   // Benutzerstempel (ISO 7.5); nullable: Altdaten + Beleg-Import bleiben NULL
   erstelltVonId       String?        @map("erstellt_von_id")
+  // Vertriebs-Verknüpfung (KF3-37): n Fertigungsaufträge je Kundenauftrag
+  kundenauftragId     String?        @map("kundenauftrag_id")
   erstelltAm          DateTime       @default(now()) @map("erstellt_am")
 
   erstelltVon         Benutzer?      @relation(fields: [erstelltVonId], references: [id], onDelete: SetNull)
+  kundenauftrag       Kundenauftrag? @relation(fields: [kundenauftragId], references: [id], onDelete: SetNull)
   positionen          AuftragPosition[]
   zeiten              Auftragszeit[]
   dateien             Datei[]
@@ -227,6 +296,8 @@ model Auftrag {
 
   @@index([status])
   @@index([nummer])
+  // FA-Liste je Kundenauftrag (KF3-37)
+  @@index([kundenauftragId])
   @@map("auftrag")
 }
 

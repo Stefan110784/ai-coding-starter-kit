@@ -34,11 +34,16 @@ interface Kpi {
   avgStallDays: number | null;
   leadTimeDaysMedian: number | null;
   leadTimeDaysAvg: number | null;
+  kundenLiefertreueRate: number | null;
+  kundenLiefertreueBasis: number;
 }
 
 // KPI-Definitionen mit Richtwerten (V2: KPI_DEFS in auswertung.js)
 const KPI_DEFS = [
-  { key: "onTimeDeliveryRate", label: "Liefertreue", einheit: " %", richtwert: 95, richtung: "hoch" as const },
+  { key: "onTimeDeliveryRate", label: "Liefertreue (Fertigung)", einheit: " %", richtwert: 95, richtung: "hoch" as const },
+  // Ende-zu-Ende gegen den Kundenwunschtermin (KF3-37) — andere Grundgesamtheit
+  // als die Fertigungs-Liefertreue (gelieferte Kundenaufträge statt FA-Enden)
+  { key: "kundenLiefertreueRate", label: "Liefertreue (Kunde)", einheit: " %", richtwert: 95, richtung: "hoch" as const },
   { key: "reworkRate", label: "Nacharbeitsquote", einheit: " %", richtwert: 5, richtung: "niedrig" as const },
   { key: "missingPartsRate", label: "Fehlteilquote", einheit: " %", richtwert: null, richtung: "niedrig" as const },
   { key: "leadTimeDaysMedian", label: "Ø Durchlaufzeit", einheit: " Tage", richtwert: null, richtung: "niedrig" as const },
@@ -114,11 +119,18 @@ export function KpiDashboard() {
       </div>
 
       {/* ── KPI-Karten ───────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         {KPI_DEFS.map((def) => {
           const wert = kpi ? (kpi[def.key as keyof Kpi] as number | null) : null;
           return (
-            <Card key={def.key}>
+            <Card
+              key={def.key}
+              title={
+                def.key === "kundenLiefertreueRate"
+                  ? "Ende-zu-Ende gegen den Kundenwunschtermin (gelieferte Kundenaufträge) — andere Grundgesamtheit als die Fertigungs-Liefertreue (abgeschlossene Fertigungsaufträge gegen zugesagten Termin)"
+                  : undefined
+              }
+            >
               <CardHeader className="pb-1">
                 <CardTitle className="text-sm font-medium text-muted-foreground">{def.label}</CardTitle>
               </CardHeader>
@@ -138,6 +150,8 @@ export function KpiDashboard() {
                         ` · Ø ${kpi.avgStallDays} Stalltage`}
                       {def.key === "leadTimeDaysMedian" && kpi?.leadTimeDaysAvg != null &&
                         ` · Ø ${kpi.leadTimeDaysAvg} Tage (Mittel)`}
+                      {def.key === "kundenLiefertreueRate" &&
+                        ` · ${kpi?.kundenLiefertreueBasis ?? 0} Kundenaufträge`}
                     </p>
                   </>
                 )}

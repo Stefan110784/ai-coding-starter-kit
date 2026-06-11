@@ -266,3 +266,46 @@ export async function auftraegeInWoche(jahr: number, woche: number): Promise<Auf
     return montag <= tag && tag <= sonntag;
   });
 }
+
+// ── Ende-zu-Ende-Liefertreue (Kundenaufträge, KF3-37) ────────────────
+
+export interface KundenLiefertreue {
+  /** Gelieferte Kundenaufträge mit Wunschtermin in der Woche. */
+  basis: number;
+  prozent: number | null;
+}
+
+/**
+ * Reine Logik: pünktlich = geliefert am/vor dem Kundenwunschtermin
+ * (Tagesvergleich Europe/Berlin). Misst bewusst gegen den WUNSCH-, nicht den
+ * bestätigten Termin — der bestätigte ist das Rückkanal-Feld (KF3-39).
+ */
+export function berechneKundenLiefertreue(
+  auftraege: Array<{ wunschtermin: Date | null; geliefertAm: Date | null }>
+): KundenLiefertreue {
+  const messbar = auftraege.filter((k) => k.wunschtermin !== null && k.geliefertAm !== null);
+  if (messbar.length === 0) return { basis: 0, prozent: null };
+  const puenktlich = messbar.filter(
+    (k) => lokalDatum(k.geliefertAm as Date) <= lokalDatum(k.wunschtermin as Date)
+  ).length;
+  return { basis: messbar.length, prozent: rund1((puenktlich / messbar.length) * 100) };
+}
+
+/** Kundenaufträge mit Lieferung in der ISO-Woche (Berlin-Tagesgrenzen). */
+export async function kundenLiefertreueInWoche(
+  jahr: number,
+  woche: number
+): Promise<KundenLiefertreue> {
+  const montag = lokalDatum(montagVonIsoWoche(jahr, woche));
+  const sonntag = lokalDatum(sonntagVonIsoWoche(jahr, woche));
+  const geliefert = await prisma.kundenauftrag.findMany({
+    where: { status: "geliefert", aktiv: true, geliefertAm: { not: null } },
+    select: { wunschtermin: true, geliefertAm: true },
+  });
+  return berechneKundenLiefertreue(
+    geliefert.filter((k) => {
+      const tag = lokalDatum(k.geliefertAm as Date);
+      return montag <= tag && tag <= sonntag;
+    })
+  );
+}
