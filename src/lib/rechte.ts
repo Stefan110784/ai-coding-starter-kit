@@ -55,6 +55,11 @@ export const RECHTE_KATALOG: RechteGruppe[] = [
   },
   { key: "planung", label: "Planung / Timeline", funktionen: [] },
   { key: "lieferanten", label: "Lieferanten & EOQ", funktionen: [] },
+  {
+    key: "einkauf",
+    label: "Einkauf / Bestellungen",
+    funktionen: [{ key: "einkauf.bestellen", label: "Bestellungen anlegen / ändern" }],
+  },
   { key: "auswertung", label: "Auswertung", funktionen: [] },
   { key: "verwaltung", label: "Verwaltung (Stammdaten & Benutzer)", funktionen: [] },
 ];
@@ -84,6 +89,9 @@ export const STANDARD_RECHTE: Record<string, ReadonlySet<string>> = {
     "qualitaet",
     "lager",
     "lager.buchen",
+    // Einkauf sehen + Wareneingang buchen (WE verlangt serverseitig zusätzlich
+    // lager.buchen); Bestellungen anlegen (einkauf.bestellen) bleibt Admin.
+    "einkauf",
   ]),
   mitarbeiter: new Set(["dashboard", "auftraege", "zeiten", "qualitaet"]),
 };

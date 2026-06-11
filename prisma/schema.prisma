@@ -70,6 +70,7 @@ model Benutzer {
   qualitaetErfasst     Qualitaet[]
   pruefungen           Pruefung[]
   abweichungenErfasst  Abweichung[]
+  bestellungenAngelegt Bestellung[]
 
   @@map("benutzer")
 }
@@ -149,6 +150,7 @@ model Artikel {
   inventurZaehlungen  InventurZaehlung[]
   kommissionierChecks KommissionierCheck[]
   lieferanten         ArtikelLieferant[]
+  bestellPositionen   BestellPosition[]
 
   @@map("artikel")
 }
@@ -218,6 +220,7 @@ model Auftrag {
   pruefungen          Pruefung[]
   abweichungen        Abweichung[]
   materialSnapshots   AuftragMaterialSnapshot[]
+  bestellPositionen   BestellPosition[]
 
   @@index([status])
   @@index([nummer])
@@ -370,15 +373,19 @@ model Materialbewegung {
   einstandspreis Decimal?             @db.Decimal(10, 4) @map("einstandspreis")
   kostenstelle   String?              @map("kostenstelle")
   kostentraeger  String?              @map("kostentraeger")
+  // Wareneingang gegen Bestellung (KF3-30): Bezug zur Bestellposition
+  bestellPositionId String?           @map("bestell_position_id")
 
   artikel      Artikel           @relation(fields: [artikelnummer], references: [artikelnummer])
   lagerort     Lagerort          @relation("LagerortQuelle", fields: [lagerortId], references: [id])
   lagerortZiel Lagerort?         @relation("LagerortZiel", fields: [lagerortZielId], references: [id])
-  auftrag      Auftrag?          @relation(fields: [auftragId], references: [id])
-  benutzer     Benutzer?         @relation(fields: [benutzerId], references: [id])
-  inventur     InventurZaehlung?
-  pruefung     Pruefung?
+  auftrag         Auftrag?          @relation(fields: [auftragId], references: [id])
+  benutzer        Benutzer?         @relation(fields: [benutzerId], references: [id])
+  inventur        InventurZaehlung?
+  pruefung        Pruefung?
+  bestellPosition BestellPosition?  @relation(fields: [bestellPositionId], references: [id])
 
+  @@index([bestellPositionId])
   @@map("materialbewegung")
 }
 
@@ -578,7 +585,8 @@ model Lieferant {
   aktiv          Boolean  @default(true)
   erstelltAm     DateTime @default(now()) @map("erstellt_am")
 
-  artikel ArtikelLieferant[]
+  artikel      ArtikelLieferant[]
+  bestellungen Bestellung[]
 
   @@map("lieferant")
 }
@@ -600,6 +608,65 @@ model ArtikelLieferant {
 
   @@unique([artikelnummer, lieferantId])
   @@map("artikel_lieferant")
+}
+
+// ─── V3 NEU: Einkauf / Bestellwesen (Anforderung Kap. 3; KF3-29/30) ───────────
+
+enum Bestellstatus {
+  angefragt
+  bestellt
+  teilgeliefert
+  abgeschlossen
+  storniert
+}
+
+model Bestellung {
+  id              String        @id @default(uuid())
+  // Fortlaufende Nummer ohne eigene Sequenzlogik (Anzeige "B-1001");
+  // Lehre aus den doppelten Auftragsnummern in V2.
+  nr              Int           @unique @default(autoincrement())
+  lieferantId     String        @map("lieferant_id")
+  status          Bestellstatus @default(angefragt)
+  // Kopf-Termin als Default; Positionen können übersteuern
+  zugesagtTermin  DateTime?     @map("zugesagt_termin")
+  bestelltAm      DateTime?     @map("bestellt_am")
+  abgeschlossenAm DateTime?     @map("abgeschlossen_am")
+  bemerkung       String?
+  angelegtVonId   String?       @map("angelegt_von_id")
+  erstelltAm      DateTime      @default(now()) @map("erstellt_am")
+
+  lieferant   Lieferant         @relation(fields: [lieferantId], references: [id])
+  angelegtVon Benutzer?         @relation(fields: [angelegtVonId], references: [id], onDelete: SetNull)
+  positionen  BestellPosition[]
+
+  @@index([status])
+  @@map("bestellung")
+}
+
+model BestellPosition {
+  id                   String    @id @default(uuid())
+  bestellungId         String    @map("bestellung_id")
+  posNr                Int       @map("pos_nr")
+  artikelnummer        String
+  menge                Float
+  // Ist-Bestellpreis (dokumentiert zugleich die faktische Preishistorie)
+  preis                Decimal?  @db.Decimal(10, 4)
+  // EOQ-Vorschlag bei Anlage (eingefroren); weicht menge ab → Pflicht-Begründung
+  vorschlagsmenge      Float?
+  uebersteuerungsGrund String?   @map("uebersteuerungs_grund")
+  zugesagtTermin       DateTime? @map("zugesagt_termin")
+  // Fehlteil-Bezug: aus welchem Fertigungsauftrag entstand der Bedarf (Kap. 3)
+  auftragId            String?   @map("auftrag_id")
+
+  // Gelieferte Menge wird NICHT denormalisiert — sie ist die Summe der
+  // Materialbewegungen je Position (Konvention wie src/lib/bestand.ts).
+  bestellung Bestellung         @relation(fields: [bestellungId], references: [id], onDelete: Cascade)
+  artikel    Artikel            @relation(fields: [artikelnummer], references: [artikelnummer])
+  auftrag    Auftrag?           @relation(fields: [auftragId], references: [id], onDelete: SetNull)
+  bewegungen Materialbewegung[]
+
+  @@unique([bestellungId, posNr])
+  @@map("bestell_position")
 }
 
 // ─── V3 NEU: Auftragsplanung / Timeline ───────────────────────────────────────

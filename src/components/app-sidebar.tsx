@@ -11,6 +11,7 @@ import {
   BarChart2,
   CalendarDays,
   Truck,
+  ShoppingCart,
   Settings,
 } from "lucide-react";
 import {
@@ -33,6 +34,7 @@ const navItems = [
   { href: "/material", icon: Package, label: "Material / Lager", recht: "lager" },
   { href: "/planung", icon: CalendarDays, label: "Planung / Timeline", recht: "planung" },
   { href: "/lieferanten", icon: Truck, label: "Lieferanten & EOQ", recht: "lieferanten" },
+  { href: "/einkauf", icon: ShoppingCart, label: "Einkauf", recht: "einkauf" },
   { href: "/auswertung", icon: BarChart2, label: "Auswertung", recht: "auswertung" },
   { href: "/verwaltung", icon: Settings, label: "Verwaltung", recht: "verwaltung" },
 ];
