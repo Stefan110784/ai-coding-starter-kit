@@ -27,6 +27,12 @@ export async function GET(req: NextRequest) {
   const auftragId = searchParams.get("auftragId");
   const typ = searchParams.get("typ");
 
+  // Enum-Parameter validieren — sonst wirft Prisma einen unbehandelten 500
+  const STATUS_WERTE = ["offen", "inBearbeitung", "abgeschlossen"];
+  const TYP_WERTE = ["nacharbeit", "ausschuss", "reklamationKunde", "reklamationLieferant"];
+  if (status && !STATUS_WERTE.includes(status)) return err("Ungültiger status-Filter");
+  if (typ && !TYP_WERTE.includes(typ)) return err("Ungültiger typ-Filter");
+
   const abweichungen = await prisma.abweichung.findMany({
     where: {
       ...(status ? { status: status as never } : {}),
@@ -58,9 +64,15 @@ export async function POST(req: NextRequest) {
 
   try {
     const abweichung = await prisma.$transaction(async (tx) => {
+      // Auftragsnummer denormalisieren: bleibt lesbar, wenn der Auftrag
+      // später gelöscht wird (SetNull, Review-Befund)
+      const bezugsAuftrag = data.auftragId
+        ? await tx.auftrag.findUnique({ where: { id: data.auftragId }, select: { nummer: true } })
+        : null;
       const angelegt = await tx.abweichung.create({
         data: {
           ...data,
+          auftragNummer: bezugsAuftrag?.nummer,
           faelligAm: faelligAm ? new Date(faelligAm) : undefined,
           erfasstVonId: auth.benutzer.id,
         },

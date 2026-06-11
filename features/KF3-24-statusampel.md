@@ -12,7 +12,7 @@ Auf einen Blick erkennen, welche Aufträge kritisch sind — ohne neue Pflege-Fe
 2. `stalledMissingParts` → **rot** („Fehlteile")
 3. `promisedDate` überschritten (Tagesvergleich Europe/Berlin) → **rot**
 4. `promisedDate` in ≤ 3 Tagen → **gelb**
-5. `reworkRequired` → **gelb** („Nacharbeit offen")
+5. offene Abweichung (KF3-27, Status ≠ abgeschlossen) → **gelb** („Nacharbeit offen") — bewusst NICHT `reworkRequired`: das ist das historische KPI-Flag und wird nie zurückgesetzt (Review-Befund)
 6. `pausiert` → **gelb**
 7. sonst → **grün** („Im Plan")
 

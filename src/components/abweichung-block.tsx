@@ -175,8 +175,11 @@ export function AbweichungBlock({ auftragId }: { auftragId: string }) {
 
       <div className="space-y-2">
         {abweichungen.map((a) => {
+          // Tagesvergleich: erst NACH dem Fälligkeitstag überfällig (Review)
           const ueberfaellig =
-            a.status !== "abgeschlossen" && a.faelligAm && new Date(a.faelligAm) < new Date();
+            a.status !== "abgeschlossen" &&
+            a.faelligAm &&
+            a.faelligAm.slice(0, 10) < new Date().toLocaleDateString("sv-SE");
           return (
             <div key={a.id} className="rounded-md border p-2.5 space-y-1.5">
               <div className="flex flex-wrap items-center gap-1.5">

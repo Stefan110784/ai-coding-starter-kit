@@ -112,7 +112,9 @@ export async function GET(req: NextRequest) {
     nacharbeit: qualitaet7Tage._sum.nacharbeit ?? 0,
   };
 
-  // Statusampel über alle aktiven Aufträge (Anforderung Kap. 2; KF3-24)
+  // Statusampel über alle aktiven Aufträge (Anforderung Kap. 2; KF3-24).
+  // "Nacharbeit offen" kommt aus offenen Abweichungen (KF3-27), nicht aus dem
+  // historischen KPI-Flag reworkRequired (Review-Befund: bleibt dauerhaft true).
   const aktiveAuftraege = await prisma.auftrag.findMany({
     where: { status: { not: "abgeschlossen" } },
     select: {
@@ -122,13 +124,20 @@ export async function GET(req: NextRequest) {
       status: true,
       promisedDate: true,
       stalledMissingParts: true,
-      reworkRequired: true,
     },
   });
+  const offeneAbweichungen = await prisma.abweichung.groupBy({
+    by: ["auftragId"],
+    where: {
+      status: { not: "abgeschlossen" },
+      auftragId: { in: aktiveAuftraege.map((a) => a.id) },
+    },
+  });
+  const mitOffenerAbweichung = new Set(offeneAbweichungen.map((o) => o.auftragId));
   const ampelZaehler: Record<AmpelFarbe, number> = { rot: 0, gelb: 0, gruen: 0, grau: 0 };
   const ampelKritisch: Array<{ id: string; nummer: string; bezeichnung: string; farbe: AmpelFarbe; grund: string }> = [];
   for (const a of aktiveAuftraege) {
-    const ergebnis = statusampel(a, jetzt);
+    const ergebnis = statusampel({ ...a, nacharbeitOffen: mitOffenerAbweichung.has(a.id) }, jetzt);
     ampelZaehler[ergebnis.farbe]++;
     if (ergebnis.farbe === "rot" || ergebnis.farbe === "gelb") {
       ampelKritisch.push({ id: a.id, nummer: a.nummer, bezeichnung: a.bezeichnung, ...ergebnis });

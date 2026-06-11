@@ -55,6 +55,8 @@ export async function POST(req: NextRequest, { params }: Params) {
           bemerkung: parsed.data.bemerkung || null,
           menge: parsed.data.menge,
           auftragId: id,
+          // Denormalisiert: Nachweis bleibt lesbar nach Auftrags-Löschung
+          auftragNummer: auftrag.nummer,
           prueferId: auth.benutzer.id,
         },
         include: { pruefer: { select: { username: true, name: true } } },

@@ -142,14 +142,24 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
         // Endprüf-Gate (ISO 8.6, KF3-26): Nicht-Lager-Aufträge brauchen vor dem
         // Abschluss ein Prüfprotokoll mit Freigabe — VOR allen Buchungs-Hooks.
+        // Es zählt die JÜNGSTE Endprüfung (eine spätere "abweichend"-Prüfung
+        // widerruft eine ältere Freigabe), und sie muss nach der letzten
+        // Reaktivierung liegen (Nacharbeit erfordert neue Prüfung).
         if (neuerStatus === "abgeschlossen" && auftrag.status !== "abgeschlossen" && !istLager) {
-          const freigabe = await tx.pruefung.findFirst({
-            where: {
-              auftragId: id,
-              typ: "endpruefung",
-              ergebnis: { in: ["ok", "bedingtFrei"] },
-            },
+          const juengste = await tx.pruefung.findFirst({
+            where: { auftragId: id, typ: "endpruefung" },
+            orderBy: { geprueftAm: "desc" },
           });
+          let freigabe = juengste != null && ["ok", "bedingtFrei"].includes(juengste.ergebnis);
+          if (freigabe) {
+            const letzteReaktivierung = await tx.auditEvent.findFirst({
+              where: { entitaet: "auftrag", entitaetId: id, aktion: "statuswechsel", altWert: "abgeschlossen" },
+              orderBy: { zeitstempel: "desc" },
+            });
+            if (letzteReaktivierung && (juengste as { geprueftAm: Date }).geprueftAm < letzteReaktivierung.zeitstempel) {
+              freigabe = false;
+            }
+          }
           if (!freigabe) throw new PruefungFehltError();
         }
 
@@ -225,6 +235,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       if ("promisedDate" in felder) {
         // String → Date, damit der Diff nicht an Formatunterschieden hängt
         neuFuerAudit.promisedDate = felder.promisedDate ? new Date(felder.promisedDate) : null;
+      } else if (data.promisedDate !== undefined) {
+        // Auch die AUTO-Ableitung aus dem Liefertermin protokollieren —
+        // promisedDate speist Statusampel und Liefertreue-KPI (Review-Befund)
+        neuFuerAudit.promisedDate = data.promisedDate;
       }
       await auditFeldDiff(tx, "auftrag", id, auth.benutzer.id, auftrag, neuFuerAudit, AUDIT_FELDER);
 

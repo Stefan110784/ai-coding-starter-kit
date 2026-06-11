@@ -48,7 +48,11 @@ export function PruefungDialog({ auftrag, open, onOpenChange, onFreigabe }: Prue
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error(body.error ?? "Prüfung konnte nicht gespeichert werden");
+        toast.error(
+          res.status === 403
+            ? "Keine Berechtigung für die Endprüfung — Funktionsrecht „Qualität“ erforderlich"
+            : body.error ?? "Prüfung konnte nicht gespeichert werden"
+        );
         return;
       }
       setBemerkung("");

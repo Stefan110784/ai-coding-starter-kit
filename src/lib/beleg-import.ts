@@ -17,6 +17,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
+import { auditEintrag, auditFeldDiff } from "@/lib/audit";
 import { BELEGE_DIR } from "@/lib/config";
 import * as storage from "@/lib/storage";
 import { parseLiefertermin } from "@/lib/liefertermin";
@@ -146,16 +147,23 @@ export async function verarbeiteBeleg(
   return prisma.$transaction(async (tx) => {
     const vorhanden = await tx.auftrag.findFirst({ where: { abNummer: ab } });
     if (vorhanden) {
-      await tx.auftrag.update({
-        where: { id: vorhanden.id },
-        data: {
-          kunde: daten.kunde,
-          liefertermin: daten.liefertermin,
-          menge,
-          ...(produktgruppe && !vorhanden.produktManuell ? { bezeichnung: produktgruppe } : {}),
-          ...(!vorhanden.promisedDateManuell ? { promisedDate } : {}),
-        },
-      });
+      const update = {
+        kunde: daten.kunde,
+        liefertermin: daten.liefertermin,
+        menge,
+        ...(produktgruppe && !vorhanden.produktManuell ? { bezeichnung: produktgruppe } : {}),
+        ...(!vorhanden.promisedDateManuell ? { promisedDate } : {}),
+      };
+      // Audit (ISO 7.5): auch der Import-Pfad protokolliert Feldänderungen —
+      // benutzerId NULL = Systemlauf (Review-Befund: Import lief am Log vorbei)
+      await auditFeldDiff(tx, "auftrag", vorhanden.id, null, vorhanden, update, [
+        "kunde",
+        "liefertermin",
+        "menge",
+        "bezeichnung",
+        "promisedDate",
+      ]);
+      await tx.auftrag.update({ where: { id: vorhanden.id }, data: update });
       await setzePositionen(tx, vorhanden.id, positionen);
       await entferneBelegAnhaenge(tx, vorhanden.id);
       await haengeBelegAn(tx, vorhanden.id, pdfName, pdfBytes);
@@ -174,6 +182,13 @@ export async function verarbeiteBeleg(
         quelle: AUFTRAG_QUELLE,
         status: "offen",
       },
+    });
+    await auditEintrag(tx, {
+      entitaet: "auftrag",
+      entitaetId: auftrag.id,
+      aktion: "erstellt",
+      kontext: { nummer: auftrag.nummer, quelle: AUFTRAG_QUELLE },
+      benutzerId: null,
     });
     await setzePositionen(tx, auftrag.id, positionen);
     await haengeBelegAn(tx, auftrag.id, pdfName, pdfBytes);

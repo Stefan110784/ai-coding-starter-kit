@@ -29,28 +29,40 @@ export function BarcodeScanner({ open, onClose, onResult }: BarcodeScannerProps)
   const [kameraFehler, setKameraFehler] = useState<string | null>(null);
   const [kameraAktiv, setKameraAktiv] = useState(false);
   const [manuell, setManuell] = useState("");
+  // onResult über Ref entkoppeln: Inline-Callbacks der Eltern bekommen pro
+  // Render eine neue Identität — als Effect-Dependency würde das die Kamera
+  // bei jedem Parent-Re-Render neu starten und die Eingabe leeren (Review).
+  const onResultRef = useRef(onResult);
+  useEffect(() => {
+    onResultRef.current = onResult;
+  }, [onResult]);
 
   useEffect(() => {
     if (!open) return;
 
     let active = true;
+    // Nach Timeout/Fehler darf der (evtl. später doch noch auflösende)
+    // Scan-Loop nicht verdeckt weiterlaufen (Stream-Leak, Review-Befund).
+    let abgebrochen = false;
     const video = videoRef.current;
 
     // iOS/iPad-Fall: getUserMedia "läuft", liefert aber nie ein Bild (kein Fehler).
     const timeout = setTimeout(() => {
-      if (active) {
-        setKameraFehler("Kamera liefert kein Bild. Bitte den Code manuell eingeben.");
-      }
+      if (!active) return;
+      abgebrochen = true;
+      controlsRef.current?.stop();
+      controlsRef.current = null;
+      setKameraFehler("Kamera liefert kein Bild. Bitte den Code manuell eingeben.");
     }, KAMERA_TIMEOUT_MS);
     const onPlaying = () => {
-      if (!active) return;
+      if (!active || abgebrochen) return;
       clearTimeout(timeout);
       setKameraAktiv(true);
     };
     video?.addEventListener("playing", onPlaying);
 
     import("@zxing/browser").then(({ BrowserMultiFormatReader }) => {
-      if (!active || !videoRef.current) return;
+      if (!active || abgebrochen || !videoRef.current) return;
 
       new BrowserMultiFormatReader()
         .decodeFromConstraints(
@@ -59,18 +71,22 @@ export function BarcodeScanner({ open, onClose, onResult }: BarcodeScannerProps)
           { video: { facingMode: "environment" } },
           videoRef.current,
           (result, err, controls) => {
+            if (!active || abgebrochen) {
+              controls.stop();
+              return;
+            }
             if (result) {
               // Nach Treffer stoppen: kein Mehrfach-Feuern, Kamera sofort aus.
               controls.stop();
               controlsRef.current = null;
               navigator.vibrate?.(80);
-              onResult(result.getText());
+              onResultRef.current(result.getText());
             }
             void err; // NotFoundException pro Frame ist Normalbetrieb
           }
         )
         .then((controls) => {
-          if (!active) {
+          if (!active || abgebrochen) {
             controls.stop();
             return;
           }
@@ -79,6 +95,7 @@ export function BarcodeScanner({ open, onClose, onResult }: BarcodeScannerProps)
         .catch((e) => {
           if (!active) return;
           clearTimeout(timeout);
+          abgebrochen = true;
           const name = (e as { name?: string })?.name;
           setKameraFehler(
             name === "NotAllowedError"
@@ -98,7 +115,7 @@ export function BarcodeScanner({ open, onClose, onResult }: BarcodeScannerProps)
       setKameraAktiv(false);
       setManuell("");
     };
-  }, [open, onResult]);
+  }, [open]);
 
   function uebernehmen(e: React.FormEvent) {
     e.preventDefault();

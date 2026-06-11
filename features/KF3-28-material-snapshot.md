@@ -10,7 +10,7 @@ Stücklisten werden in V3 live aufgelöst und beim Ändern überschrieben — di
 
 - **Schema:** `AuftragMaterialSnapshot` (auftragId, artikelnummer, bezeichnung, einheit, bruttobedarf, bestand, nettobedarf, ausLager, typ; `@@unique([auftragId, artikelnummer])`). Migration `20260611135625_material_snapshot`.
 - **Lib:** `materialSnapshotSchreiben(tx, auftragId, bedarf?)` in `src/lib/stueckliste.ts` neben `entnahmenBuchen`; Re-Kommissionierung überschreibt den alten Stand.
-- **Aufrufstellen** in `PATCH /api/auftraege/[id]` (beide Buchungspfade): Kommissionierung (offen → kommissioniert) und Entnahme-Nachbuchung bei direktem Abschluss.
+- **Aufrufstellen** an allen drei Entnahmepfaden: Kommissionierung (offen → kommissioniert), Entnahme-Nachbuchung bei direktem Abschluss (beide in `PATCH /api/auftraege/[id]`) sowie die manuelle Entnahme-Route `POST /api/material/entnahme/[auftragId]` (Review-Befund).
 - **Bedarfs-API** `/api/material/bedarf/[auftragId]`: existiert ein Snapshot, kommen die Positionen daraus (`eingefroren: true` + Zeitstempel); der Strukturbaum bleibt Live-Sicht. UI: Badge „Stand Kommissionierung" im Materialbedarf-Block.
 
 ## Akzeptanzkriterien

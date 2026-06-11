@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireAuth, err, ok, handlePrismaError } from "@/lib/api-helpers";
+import { requireRecht, err, ok, handlePrismaError } from "@/lib/api-helpers";
 import { auditFeldDiff } from "@/lib/audit";
 
 /**
@@ -22,7 +22,9 @@ const updateSchema = z.object({
 type Params = { params: Promise<{ id: string }> };
 
 export async function PATCH(req: NextRequest, { params }: Params) {
-  const auth = await requireAuth(req);
+  // Fortschreiben/Abschließen ist QM-Arbeit → Funktionsrecht qualitaet
+  // (Melden via POST bleibt für alle Angemeldeten offen).
+  const auth = await requireRecht(req, "qualitaet");
   if ("status" in auth) return auth;
 
   const { id } = await params;

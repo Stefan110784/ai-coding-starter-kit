@@ -12,7 +12,13 @@ export interface AmpelInput {
   status: string;
   promisedDate?: Date | string | null;
   stalledMissingParts?: boolean;
-  reworkRequired?: boolean;
+  /**
+   * Offene Abweichungen/Nacharbeit am Auftrag. Bewusst NICHT
+   * `Auftrag.reworkRequired`: das ist ein historisches KPI-Flag
+   * („hatte je Nacharbeit", Nacharbeitsquote) und wird nie zurückgesetzt —
+   * die Ampel würde dauerhaft gelb bleiben (Review-Befund KF3-24/27).
+   */
+  nacharbeitOffen?: boolean;
 }
 
 export interface AmpelErgebnis {
@@ -28,6 +34,12 @@ function tagBerlin(d: Date): string {
   return d.toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
 }
 
+/** Kalendertag-Addition im Datumsraum — DST-sicher (72 h ≠ 3 Kalendertage). */
+function plusTageBerlin(d: Date, tage: number): string {
+  const [jahr, monat, tag] = tagBerlin(d).split("-").map(Number);
+  return new Date(Date.UTC(jahr, monat - 1, tag + tage)).toISOString().slice(0, 10);
+}
+
 export function statusampel(a: AmpelInput, heute: Date = new Date()): AmpelErgebnis {
   if (a.status === "abgeschlossen") return { farbe: "grau", grund: "Abgeschlossen" };
 
@@ -38,11 +50,11 @@ export function statusampel(a: AmpelInput, heute: Date = new Date()): AmpelErgeb
     const terminTag = tagBerlin(termin);
     const heuteTag = tagBerlin(heute);
     if (terminTag < heuteTag) return { farbe: "rot", grund: "Zugesagter Termin überschritten" };
-    const vorwarnTag = tagBerlin(new Date(heute.getTime() + VORWARN_TAGE * 86400000));
+    const vorwarnTag = plusTageBerlin(heute, VORWARN_TAGE);
     if (terminTag <= vorwarnTag) return { farbe: "gelb", grund: `Termin in ≤ ${VORWARN_TAGE} Tagen` };
   }
 
-  if (a.reworkRequired) return { farbe: "gelb", grund: "Nacharbeit offen" };
+  if (a.nacharbeitOffen) return { farbe: "gelb", grund: "Nacharbeit offen" };
   if (a.status === "pausiert") return { farbe: "gelb", grund: "Pausiert" };
 
   return { farbe: "gruen", grund: "Im Plan" };

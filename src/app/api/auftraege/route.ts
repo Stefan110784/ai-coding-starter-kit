@@ -47,7 +47,11 @@ export async function GET(req: NextRequest) {
           }
         : {}),
     },
-    include: { positionen: true },
+    include: {
+      positionen: true,
+      // Für die Statusampel: gibt es offene Abweichungen? (KF3-24/27)
+      _count: { select: { abweichungen: { where: { status: { not: "abgeschlossen" } } } } },
+    },
     orderBy: { erstelltAm: "desc" },
   });
 

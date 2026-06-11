@@ -19,6 +19,7 @@ Eine Tabelle + ein Helper deckt Status, Notiz und künftige Stammdaten-Audits ab
   - `POST /api/auftraege`: „erstellt" + `erstelltVonId`.
   - `DELETE /api/auftraege/[id]`: „geloescht" mit Auftragskopf im Kontext, VOR dem Cascade-Delete.
   - Datei-Upload (`/api/dateien`, `/api/fotos` → `legeDateiAn`): `hochgeladenVonId`. Beleg-Import bleibt bewusst NULL (`quelle: "beleg"` dokumentiert die automatische Herkunft).
+  - Beleg-Import (`verarbeiteBeleg`): „erstellt"-Event + Feld-Diffs auch für Import-Updates (benutzerId NULL = Systemlauf) — der Import läuft nicht mehr am Log vorbei (Review-Befund). Auch die AUTO-Ableitung von `promisedDate` aus dem Liefertermin wird protokolliert.
   - `POST /api/qualitaet`: `erfasstVonId`.
 - **Lesen:** `GET /api/audit?entitaet=&entitaetId=` (je Entität für Angemeldete; Gesamtauszug nur mit Verwaltungs-Recht). UI: Tab „Verlauf" im Auftrags-Sheet (`src/components/auftrag-verlauf.tsx`).
 

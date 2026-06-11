@@ -464,18 +464,22 @@ model Pruefung {
   typ           PruefTyp
   ergebnis      PruefErgebnis
   auftragId     String?       @map("auftrag_id")
+  // Denormalisiert: bleibt lesbar, wenn der Auftrag gelöscht wird (SetNull)
+  auftragNummer String?       @map("auftrag_nummer")
   bewegungId    String?       @unique @map("bewegung_id")
   artikelnummer String?
   menge         Float?
   bemerkung     String? // Pflicht bei ergebnis ≠ ok (Zod)
-  prueferId     String        @map("pruefer_id")
+  // Nullable + SetNull wie alle Benutzerstempel: Benutzer bleiben löschbar,
+  // der Nachweis (AuditEvent + auftragNummer) bleibt bestehen.
+  prueferId     String?       @map("pruefer_id")
   geprueftAm    DateTime      @default(now()) @map("geprueft_am")
 
   // SetNull statt Cascade: das Prüfprotokoll ist ISO-Aufzeichnung und
   // überlebt die Löschung des Auftrags.
   auftrag  Auftrag?          @relation(fields: [auftragId], references: [id], onDelete: SetNull)
   bewegung Materialbewegung? @relation(fields: [bewegungId], references: [id])
-  pruefer  Benutzer          @relation(fields: [prueferId], references: [id])
+  pruefer  Benutzer?         @relation(fields: [prueferId], references: [id], onDelete: SetNull)
 
   @@index([auftragId])
   @@map("pruefung")
@@ -538,6 +542,8 @@ model Abweichung {
   typ              AbweichungTyp
   status           AbweichungStatus @default(offen)
   auftragId        String?          @map("auftrag_id")
+  // Denormalisiert: bleibt lesbar, wenn der Auftrag gelöscht wird (SetNull)
+  auftragNummer    String?          @map("auftrag_nummer")
   artikelnummer    String?
   beschreibung     String
   ursache          String?

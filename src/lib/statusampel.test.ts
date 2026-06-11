@@ -32,8 +32,8 @@ describe("statusampel", () => {
     expect(statusampel({ status: "laeuft", promisedDate: "2026-06-14T00:00:00Z" }, HEUTE).farbe).toBe("gruen");
   });
 
-  it("Nacharbeit offen → gelb, auch ohne Termin", () => {
-    expect(statusampel({ status: "laeuft", reworkRequired: true }, HEUTE)).toEqual({
+  it("offene Nacharbeit-Abweichung → gelb, auch ohne Termin", () => {
+    expect(statusampel({ status: "laeuft", nacharbeitOffen: true }, HEUTE)).toEqual({
       farbe: "gelb",
       grund: "Nacharbeit offen",
     });
@@ -45,6 +45,12 @@ describe("statusampel", () => {
 
   it("aktiv ohne Befunde → gruen", () => {
     expect(statusampel({ status: "offen" }, HEUTE)).toEqual({ farbe: "gruen", grund: "Im Plan" });
+  });
+
+  it("Vorwarn-Horizont über den Herbst-DST-Wechsel: Kalendertage statt 72 h", () => {
+    // 23.10.2026 00:30 Berlin; Zeitumstellung 25.10. — Termin 26.10. ist Tag 3 → gelb
+    const dstHeute = new Date("2026-10-22T22:30:00Z");
+    expect(statusampel({ status: "laeuft", promisedDate: "2026-10-26T12:00:00Z" }, dstHeute).farbe).toBe("gelb");
   });
 
   it("Tagesgrenze Europe/Berlin: 23:30 UTC am Vortag ist bereits der Termin-Tag", () => {

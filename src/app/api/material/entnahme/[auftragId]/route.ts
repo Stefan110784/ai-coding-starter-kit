@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireRecht, err, ok } from "@/lib/api-helpers";
-import { nettobedarfFuerAuftrag, entnahmenBuchen } from "@/lib/stueckliste";
+import { nettobedarfFuerAuftrag, entnahmenBuchen, materialSnapshotSchreiben } from "@/lib/stueckliste";
 
 type Params = { params: Promise<{ auftragId: string }> };
 
@@ -22,6 +22,9 @@ export async function POST(req: NextRequest, { params }: Params) {
   const result = await prisma.$transaction(async (tx) => {
     const bedarf = await nettobedarfFuerAuftrag(tx, auftragId);
     const gebucht = await entnahmenBuchen(tx, auftragId, auth.benutzer.id, lagerortId, bedarf);
+    // Auch der manuelle Entnahmepfad friert den Materialstand ein (ISO 7.5,
+    // KF3-28) — sonst bliebe dieser Pfad ohne Snapshot (Review-Befund)
+    await materialSnapshotSchreiben(tx, auftragId, bedarf);
     return { gebucht, mangel: bedarf.mangel, mangelnd: bedarf.mangelnd };
   });
 

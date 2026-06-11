@@ -91,6 +91,7 @@ type Auftrag = {
   promisedDate?: string | null;
   stalledMissingParts?: boolean;
   reworkRequired?: boolean;
+  _count?: { abweichungen: number };
   status: string;
   start?: string | null;
   ende?: string | null;
@@ -329,7 +330,9 @@ export default function AuftraegePage() {
                     >
                       <TableCell className="font-mono font-medium">
                         <span className="flex items-center gap-2">
-                          <StatusampelPunkt auftrag={a} />
+                          <StatusampelPunkt
+                            auftrag={{ ...a, nacharbeitOffen: (a._count?.abweichungen ?? 0) > 0 }}
+                          />
                           {a.nummer}
                         </span>
                       </TableCell>
