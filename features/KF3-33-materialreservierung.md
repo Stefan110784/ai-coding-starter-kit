@@ -13,7 +13,8 @@
 ## Verfügbarkeit — eine Wahrheitsquelle (`src/lib/reservierung.ts`)
 
 - `reserviertJeArtikel(db, ausserAuftragId?)` — Summe offener Reservierungen je Artikel (groupBy, Spiegel von `bestandJeArtikel`).
-- **Netting-/Lagersicht:** `effektiv = max(0, bestand − fremde Reservierungen)` — fließt über `ladeBomDaten`/`nettobedarfFuerAuftrag` in Netting, Bedarf-API, Soll-Zeit und Snapshot (Snapshot dokumentiert damit den Stand, der für DIESEN Auftrag GALT — ISO-genauer, im Schema kommentiert).
+- **Prioritätsregel (E2E-Befund):** Das auftragsbezogene Netting mindert der effektive Bestand nur um Reservierungen **älterer** Aufträge (`fremdeAeltereReservierungen`, Anker `auftrag.erstelltAm` — stabil über Beleg-Refreshes). Wer zuerst reserviert hat, behält seinen Anspruch; sonst würde ein später angelegter, nur teilgedeckter Auftrag mit seinem vollen Anspruch die Kommissionierung des früheren blockieren.
+- **Netting-/Lagersicht:** `effektiv = max(0, bestand − fremde ÄLTERE Reservierungen)` — fließt über `nettobedarfFuerAuftrag`/`bedarfsbaum`/`sollSekundenNetto` in Netting, Bedarf-API, Soll-Zeit und Snapshot (Snapshot dokumentiert damit den Stand, der für DIESEN Auftrag GALT — ISO-genauer).
 - **Beschaffungssicht (Bestellvorschläge):** `verfuegbar = bestand − reserviert + offen bestellt` — ungekappt, damit reservierte Fehlmengen Vorschläge auslösen.
 - **Material-Seite:** zeigt `reserviert` + `verfuegbar` als Spalten; `unterMindest` bleibt bewusst reine Lagersicht (dokumentierte Divergenz wie in KF3-29).
 - Alle Vergleiche mit `MENGEN_EPS` (bestellung.ts).

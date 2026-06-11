@@ -33,6 +33,37 @@ export async function reserviertJeArtikel(
 }
 
 /**
+ * Prioritätsregel fürs Netting: Den effektiven Bestand eines Auftrags mindern
+ * nur Reservierungen ÄLTERER Aufträge (Anlagezeitpunkt) — wer zuerst
+ * reserviert hat, behält seinen Anspruch. Ohne diese Regel würde ein später
+ * angelegter, nur teilgedeckter Auftrag mit seinem vollen Anspruch die
+ * Kommissionierung des früheren blockieren. Anker ist auftrag.erstelltAm
+ * (stabil über Beleg-Refreshes, anders als die Reservierungszeile selbst).
+ */
+export async function fremdeAeltereReservierungen(
+  db: Db,
+  auftragId: string
+): Promise<Map<string, number>> {
+  const auftrag = await db.auftrag.findUnique({
+    where: { id: auftragId },
+    select: { erstelltAm: true },
+  });
+  if (!auftrag) return new Map();
+  const rows = await db.materialReservierung.findMany({
+    where: {
+      auftragId: { not: auftragId },
+      auftrag: { erstelltAm: { lt: auftrag.erstelltAm } },
+    },
+    select: { artikelnummer: true, menge: true },
+  });
+  const summe = new Map<string, number>();
+  for (const r of rows) {
+    summe.set(r.artikelnummer, (summe.get(r.artikelnummer) ?? 0) + r.menge);
+  }
+  return summe;
+}
+
+/**
  * Netting-Sicht: Bestand abzüglich (fremder) Reservierungen, je Artikel auf
  * ≥ 0 geklemmt. Reine Funktion — liefert eine NEUE Map.
  */

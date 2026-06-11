@@ -598,6 +598,8 @@ model Abweichung {
 
   @@index([status])
   @@index([auftragId])
+  // Pareto-Query (KF3-34): groupBy(grundId) WHERE typ + Zeitraum
+  @@index([typ, erfasstAm])
   @@map("abweichung")
 }
 
@@ -716,6 +718,8 @@ model BestellPosition {
   bewegungen Materialbewegung[]
 
   @@unique([bestellungId, posNr])
+  // Fehlteil-Pareto (KF3-34): Filter auftragId IS NOT NULL
+  @@index([auftragId])
   @@map("bestell_position")
 }
 

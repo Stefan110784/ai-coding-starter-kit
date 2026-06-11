@@ -17,7 +17,7 @@
  */
 import { ABPACKZEIT_MINUTEN } from "@/lib/config";
 import { bestandJeArtikel, type Db } from "@/lib/bestand";
-import { effektiverBestand, reserviertJeArtikel } from "@/lib/reservierung";
+import { effektiverBestand, fremdeAeltereReservierungen } from "@/lib/reservierung";
 
 export interface KindPos {
   artikelnummer: string;
@@ -200,7 +200,7 @@ export async function nettobedarfFuerAuftrag(db: Db, auftragId: string): Promise
   const [daten, positionen, reserviert] = await Promise.all([
     ladeBomDaten(db),
     ladeAuftragPositionen(db, auftragId),
-    reserviertJeArtikel(db, auftragId),
+    fremdeAeltereReservierungen(db, auftragId),
   ]);
   // KF3-33: auftragsbezogenes Netting rechnet gegen den EFFEKTIVEN Bestand
   // (physisch − fremde Reservierungen) — andere Aufträge nehmen diesem
@@ -282,7 +282,7 @@ export async function bedarfsbaumFuerAuftrag(db: Db, auftragId: string): Promise
   const [daten, positionen, reserviert] = await Promise.all([
     ladeBomDaten(db),
     ladeAuftragPositionen(db, auftragId),
-    reserviertJeArtikel(db, auftragId),
+    fremdeAeltereReservierungen(db, auftragId),
   ]);
   daten.bestand = effektiverBestand(daten.bestand, reserviert);
   return bedarfsbaumAusDaten(daten, positionen);
@@ -354,7 +354,7 @@ export async function sollSekundenNetto(
   const [daten, positionen, reserviert] = await Promise.all([
     ladeBomDaten(db),
     ladeAuftragPositionen(db, auftragId),
-    reserviertJeArtikel(db, auftragId),
+    fremdeAeltereReservierungen(db, auftragId),
   ]);
   // Effektiver Bestand (KF3-33): fremd-reserviertes Lager gilt als nicht
   // verfügbar → Soll-Zeit enthält dann die Eigenfertigung. Bewusste Änderung.

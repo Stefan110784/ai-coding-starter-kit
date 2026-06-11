@@ -19,6 +19,7 @@ import { Download, FileText } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { KpiDashboard } from "@/components/kpi-dashboard";
+import { ParetoBlock } from "@/components/pareto-block";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -94,10 +95,15 @@ export default function AuswertungPage() {
         <TabsList>
           <TabsTrigger value="uebersicht">Übersicht</TabsTrigger>
           <TabsTrigger value="kpi">KPI</TabsTrigger>
+          <TabsTrigger value="pareto">Pareto</TabsTrigger>
         </TabsList>
 
         <TabsContent value="kpi" className="mt-4">
           <KpiDashboard />
+        </TabsContent>
+
+        <TabsContent value="pareto" className="mt-4">
+          <ParetoBlock />
         </TabsContent>
 
         <TabsContent value="uebersicht" className="mt-4 space-y-6">
