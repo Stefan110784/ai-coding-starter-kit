@@ -304,6 +304,8 @@ export default function MaterialPage() {
                     <TableHead>Artikelnummer</TableHead>
                     <TableHead>Bezeichnung</TableHead>
                     <TableHead className="text-right">Bestand</TableHead>
+                    <TableHead className="text-right" title="Durch offene Aufträge reserviert (KF3-33)">Reserviert</TableHead>
+                    <TableHead className="text-right">Verfügbar</TableHead>
                     <TableHead>Einheit</TableHead>
                     <TableHead className="text-right">Mindestbestand</TableHead>
                     <TableHead>Lagerort</TableHead>
@@ -314,7 +316,7 @@ export default function MaterialPage() {
                   {bestaendeLoading
                     ? [...Array(5)].map((_, i) => (
                         <TableRow key={i}>
-                          {[...Array(7)].map((_, j) => (
+                          {[...Array(9)].map((_, j) => (
                             <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
                           ))}
                         </TableRow>
@@ -323,6 +325,8 @@ export default function MaterialPage() {
                         artikelnummer: string;
                         bezeichnung: string;
                         bestand: number;
+                        reserviert?: number;
+                        verfuegbar?: number;
                         einheit: string;
                         mindestbestand?: number | null;
                         unterMindest: boolean;
@@ -338,6 +342,12 @@ export default function MaterialPage() {
                           <TableCell>{b.bezeichnung}</TableCell>
                           <TableCell className={`text-right font-mono ${b.unterMindest ? "text-destructive font-semibold" : ""}`}>
                             {b.bestand}
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-muted-foreground">
+                            {(b.reserviert ?? 0) > 0 ? b.reserviert : "–"}
+                          </TableCell>
+                          <TableCell className={`text-right font-mono ${(b.verfuegbar ?? b.bestand) < 0 ? "text-destructive font-semibold" : ""}`}>
+                            {b.verfuegbar ?? b.bestand}
                           </TableCell>
                           <TableCell>{b.einheit}</TableCell>
                           <TableCell className="text-right">{b.mindestbestand ?? "–"}</TableCell>

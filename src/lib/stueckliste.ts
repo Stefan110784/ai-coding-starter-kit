@@ -17,6 +17,7 @@
  */
 import { ABPACKZEIT_MINUTEN } from "@/lib/config";
 import { bestandJeArtikel, type Db } from "@/lib/bestand";
+import { effektiverBestand, fremdeAeltereReservierungen } from "@/lib/reservierung";
 
 export interface KindPos {
   artikelnummer: string;
@@ -195,8 +196,30 @@ export function nettobedarfAusDaten(daten: BomDaten, positionen: AuftragPos[]): 
   return { positionen: liste, mangel: mangelnd.length > 0, mangelnd };
 }
 
-export async function nettobedarfFuerAuftrag(db: Db, auftragId: string): Promise<NettobedarfResult> {
-  const [daten, positionen] = await Promise.all([ladeBomDaten(db), ladeAuftragPositionen(db, auftragId)]);
+/**
+ * Zwei Bestandssichten (KF3-33):
+ * - "effektiv" (dispositiv): physisch − fremde ältere Reservierungen — für
+ *   Verfügbarkeitsprüfung, Mangel-Gate und Planungsansichten.
+ * - "physisch": unverändert — für BUCHUNGEN (Entnahmen, Snapshot, Soll-Zeit
+ *   beim Kommissionieren). Der V2-Entnahme-Quirk (ausLager ODER nettobedarf)
+ *   ist für physischen Bestand entworfen; mit effektiver Sicht entstünden
+ *   Über-/Unterbuchungen (Review-Befund Paket 3).
+ */
+export type BestandsSicht = "effektiv" | "physisch";
+
+export async function nettobedarfFuerAuftrag(
+  db: Db,
+  auftragId: string,
+  sicht: BestandsSicht = "effektiv"
+): Promise<NettobedarfResult> {
+  const [daten, positionen, reserviert] = await Promise.all([
+    ladeBomDaten(db),
+    ladeAuftragPositionen(db, auftragId),
+    sicht === "effektiv" ? fremdeAeltereReservierungen(db, auftragId) : Promise.resolve(new Map<string, number>()),
+  ]);
+  if (sicht === "effektiv") {
+    daten.bestand = effektiverBestand(daten.bestand, reserviert);
+  }
   return nettobedarfAusDaten(daten, positionen);
 }
 
@@ -270,7 +293,12 @@ export function bedarfsbaumAusDaten(daten: BomDaten, positionen: AuftragPos[]): 
 }
 
 export async function bedarfsbaumFuerAuftrag(db: Db, auftragId: string): Promise<BaumZeile[]> {
-  const [daten, positionen] = await Promise.all([ladeBomDaten(db), ladeAuftragPositionen(db, auftragId)]);
+  const [daten, positionen, reserviert] = await Promise.all([
+    ladeBomDaten(db),
+    ladeAuftragPositionen(db, auftragId),
+    fremdeAeltereReservierungen(db, auftragId),
+  ]);
+  daten.bestand = effektiverBestand(daten.bestand, reserviert);
   return bedarfsbaumAusDaten(daten, positionen);
 }
 
@@ -335,9 +363,17 @@ export function sollSekundenNettoAusDaten(
 export async function sollSekundenNetto(
   db: Db,
   auftragId: string,
-  packzeitMinuten: number = ABPACKZEIT_MINUTEN
+  packzeitMinuten: number = ABPACKZEIT_MINUTEN,
+  sicht: BestandsSicht = "effektiv"
 ): Promise<number | null> {
-  const [daten, positionen] = await Promise.all([ladeBomDaten(db), ladeAuftragPositionen(db, auftragId)]);
+  const [daten, positionen, reserviert] = await Promise.all([
+    ladeBomDaten(db),
+    ladeAuftragPositionen(db, auftragId),
+    sicht === "effektiv" ? fremdeAeltereReservierungen(db, auftragId) : Promise.resolve(new Map<string, number>()),
+  ]);
+  if (sicht === "effektiv") {
+    daten.bestand = effektiverBestand(daten.bestand, reserviert);
+  }
   return sollSekundenNettoAusDaten(daten, positionen, packzeitMinuten);
 }
 

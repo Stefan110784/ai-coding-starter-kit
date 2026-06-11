@@ -138,11 +138,30 @@ export async function POST(req: NextRequest, { params }: Params) {
           },
         });
         if (p.pruefErgebnis === "abweichend") {
+          // Default-Grund (KF3-34): ohne grundId würde „(ohne Grund)“ die
+          // Lieferanten-Pareto dominieren; Präzisierung jederzeit am Vorgang
+          let grund = await tx.abweichungsGrund.findUnique({
+            where: { name: "Wareneingang abweichend" },
+          });
+          if (!grund) {
+            grund = await tx.abweichungsGrund.create({
+              data: { name: "Wareneingang abweichend", bereich: "wareneingang" },
+            });
+            // Katalog-Anlage auditieren — auch wenn sie hier systemseitig passiert
+            await auditEintrag(tx, {
+              entitaet: "abweichungsGrund",
+              entitaetId: grund.id,
+              aktion: "erstellt",
+              kontext: { name: grund.name, bereich: grund.bereich, quelle: "wareneingang" },
+              benutzerId: auth.benutzer.id,
+            });
+          }
           await tx.abweichung.create({
             data: {
               typ: "reklamationLieferant",
               artikelnummer: pos.artikelnummer,
               beschreibung: `WE B-${bestellung.nr}: ${p.pruefBemerkung}`,
+              grundId: grund.id,
               erfasstVonId: auth.benutzer.id,
             },
           });

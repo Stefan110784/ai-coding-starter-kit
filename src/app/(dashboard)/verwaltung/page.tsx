@@ -40,6 +40,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { BelegImportTab } from "@/components/beleg-import-tab";
 import { ZuweisungUebersicht } from "@/components/zuweisung-uebersicht";
+import { AbweichungsGruendeTab } from "@/components/abweichungsgruende-tab";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -334,9 +335,15 @@ export default function VerwaltungPage() {
           <TabsTrigger value="benutzer">Benutzer</TabsTrigger>
           <TabsTrigger value="lagerorte">Lagerorte</TabsTrigger>
           <TabsTrigger value="kategorien">Zeitkategorien</TabsTrigger>
+          <TabsTrigger value="gruende">Abweichungsgründe</TabsTrigger>
           <TabsTrigger value="arbeitsvorrat">Arbeitsvorrat</TabsTrigger>
           <TabsTrigger value="import">Beleg-Import</TabsTrigger>
         </TabsList>
+
+        {/* ── ABWEICHUNGSGRÜNDE (KF3-34) ── */}
+        <TabsContent value="gruende">
+          <AbweichungsGruendeTab />
+        </TabsContent>
 
         {/* ── ARBEITSVORRAT-ZUWEISUNGEN ── */}
         <TabsContent value="arbeitsvorrat">

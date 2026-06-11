@@ -42,8 +42,9 @@ export async function POST(req: NextRequest, { params }: Params) {
       await tx.inventurZaehlung.updateMany({ where: { artikelnummer: alt }, data: { artikelnummer: neu } });
       await tx.kommissionierCheck.updateMany({ where: { artikelnummer: alt }, data: { artikelnummer: neu } });
       await tx.artikelLieferant.updateMany({ where: { artikelnummer: alt }, data: { artikelnummer: neu } });
-      // FK aus Paket 2 (Bestellwesen) …
+      // FK aus Paket 2 (Bestellwesen) und Paket 3 (Reservierung) …
       await tx.bestellPosition.updateMany({ where: { artikelnummer: alt }, data: { artikelnummer: neu } });
+      await tx.materialReservierung.updateMany({ where: { artikelnummer: alt }, data: { artikelnummer: neu } });
       // … sowie FK-lose, denormalisierte Verweise (konsistent halten)
       await tx.artikelLieferantPreis.updateMany({ where: { artikelnummer: alt }, data: { artikelnummer: neu } });
       await tx.pruefung.updateMany({ where: { artikelnummer: alt }, data: { artikelnummer: neu } });

@@ -21,6 +21,8 @@ import { auditEintrag, auditFeldDiff } from "@/lib/audit";
 import { BELEGE_DIR } from "@/lib/config";
 import * as storage from "@/lib/storage";
 import { parseLiefertermin } from "@/lib/liefertermin";
+import { nettobedarfFuerAuftrag } from "@/lib/stueckliste";
+import { reservierungAktualisieren } from "@/lib/reservierung";
 import {
   parseBeleg,
   produktgruppeAusPositionen,
@@ -144,7 +146,10 @@ export async function verarbeiteBeleg(
   const produktgruppe = produktgruppeAusPositionen(positionen, flags);
   const promisedDate = parseLiefertermin(daten.liefertermin);
 
-  return prisma.$transaction(async (tx) => {
+  // Serializable wie POST /api/auftraege (KF3-33): der Import ist der zweite
+  // Reservierungs-Anlagepfad — parallele Läufe dürfen nicht beide den vollen
+  // Bestand sehen. Bei Serialisierungskonflikt (P2034) einmal wiederholen.
+  const lauf = () => prisma.$transaction(async (tx) => {
     const vorhanden = await tx.auftrag.findFirst({ where: { abNummer: ab } });
     if (vorhanden) {
       const update = {
@@ -165,6 +170,18 @@ export async function verarbeiteBeleg(
       ]);
       await tx.auftrag.update({ where: { id: vorhanden.id }, data: update });
       await setzePositionen(tx, vorhanden.id, positionen);
+      // Reservierung neu rechnen — NUR wenn noch KEINE Entnahmen existieren
+      // (der Status ist dafür kein verlässlicher Proxy: manuelle Entnahme lässt
+      // ihn auf offen, Reaktivierung setzt ihn zurück — Review-Befund Paket 3)
+      // und der Auftrag nicht schon kommissioniert/abgeschlossen ist.
+      const hatEntnahme = await tx.materialbewegung.findFirst({
+        where: { auftragId: vorhanden.id, art: "entnahme" },
+        select: { id: true },
+      });
+      if (!hatEntnahme && ["offen", "laeuft", "pausiert"].includes(vorhanden.status)) {
+        const bedarf = await nettobedarfFuerAuftrag(tx, vorhanden.id);
+        await reservierungAktualisieren(tx, vorhanden.id, bedarf, null);
+      }
       await entferneBelegAnhaenge(tx, vorhanden.id);
       await haengeBelegAn(tx, vorhanden.id, pdfName, pdfBytes);
       return "aktualisiert";
@@ -191,9 +208,19 @@ export async function verarbeiteBeleg(
       benutzerId: null,
     });
     await setzePositionen(tx, auftrag.id, positionen);
+    // Material reservieren (KF3-33) — Systemlauf, benutzerId null
+    const bedarf = await nettobedarfFuerAuftrag(tx, auftrag.id);
+    await reservierungAktualisieren(tx, auftrag.id, bedarf, null);
     await haengeBelegAn(tx, auftrag.id, pdfName, pdfBytes);
     return "angelegt";
-  });
+  }, { isolationLevel: "Serializable" });
+
+  try {
+    return await lauf();
+  } catch (e) {
+    if ((e as { code?: string })?.code === "P2034") return lauf();
+    throw e;
+  }
 }
 
 /** Basissystem-Flags: artikelnummer → true für alle markierten Artikel. */

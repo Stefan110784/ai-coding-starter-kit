@@ -152,6 +152,7 @@ model Artikel {
   kommissionierChecks KommissionierCheck[]
   lieferanten         ArtikelLieferant[]
   bestellPositionen   BestellPosition[]
+  reservierungen      MaterialReservierung[]
 
   @@map("artikel")
 }
@@ -222,6 +223,7 @@ model Auftrag {
   abweichungen        Abweichung[]
   materialSnapshots   AuftragMaterialSnapshot[]
   bestellPositionen   BestellPosition[]
+  reservierungen      MaterialReservierung[]
 
   @@index([status])
   @@index([nummer])
@@ -516,6 +518,31 @@ model AuftragMaterialSnapshot {
   @@map("auftrag_material_snapshot")
 }
 
+// ─── V3 NEU: Materialreservierung (Anforderung Kap. 2; KF3-33) ────────────────
+
+/// Dispositiver Anspruch eines Auftrags auf Material — KEINE Materialbewegung
+/// (Bestand bleibt Summe der Bewegungen) und KEIN ISO-Nachweis (das sind
+/// AuditEvent + Material-Snapshot). Lebenszyklus = Existenz der Zeile:
+/// entsteht mit den Auftragspositionen, wird in derselben Transaktion wie die
+/// ersetzende Entnahme gelöscht. Reserviert ist der volle Anspruch
+/// (ausLager + nettobedarf) — schützt auch erst eintreffende Ware.
+model MaterialReservierung {
+  id            String   @id @default(uuid())
+  auftragId     String   @map("auftrag_id")
+  artikelnummer String
+  menge         Float // immer > 0
+  typ           String // "einzelteil" | "baugruppe" (wie Snapshot)
+  erstelltAm    DateTime @default(now()) @map("erstellt_am")
+
+  // Cascade: der Anspruch stirbt mit dem Auftrag (kein verwaister Block)
+  auftrag Auftrag @relation(fields: [auftragId], references: [id], onDelete: Cascade)
+  artikel Artikel @relation(fields: [artikelnummer], references: [artikelnummer])
+
+  @@unique([auftragId, artikelnummer])
+  @@index([artikelnummer])
+  @@map("material_reservierung")
+}
+
 // ─── V3 NEU: Abweichungen / Minimal-CAPA (ISO 9001 Kap. 8.7 / 10.2) ───────────
 
 enum AbweichungTyp {
@@ -571,6 +598,8 @@ model Abweichung {
 
   @@index([status])
   @@index([auftragId])
+  // Pareto-Query (KF3-34): groupBy(grundId) WHERE typ + Zeitraum
+  @@index([typ, erfasstAm])
   @@map("abweichung")
 }
 
@@ -689,6 +718,8 @@ model BestellPosition {
   bewegungen Materialbewegung[]
 
   @@unique([bestellungId, posNr])
+  // Fehlteil-Pareto (KF3-34): Filter auftragId IS NOT NULL
+  @@index([auftragId])
   @@map("bestell_position")
 }
 
