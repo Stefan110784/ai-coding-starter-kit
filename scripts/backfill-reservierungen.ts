@@ -12,6 +12,9 @@ async function main() {
   const offene = await prisma.auftrag.findMany({
     where: { status: "offen", positionen: { some: { artikelnummer: { not: null } } } },
     select: { id: true, nummer: true, _count: { select: { materialbewegungen: { where: { art: "entnahme" } } } } },
+    // Prioritätsregel: ältere zuerst, sonst rechnet ein jüngerer Auftrag beim
+    // Backfill gegen den vollen Bestand (Baugruppen-Deckung würde falsch verteilt)
+    orderBy: { erstelltAm: "asc" },
   });
 
   let angelegt = 0;

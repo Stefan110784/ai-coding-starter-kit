@@ -56,7 +56,8 @@ const ABW_TYPEN = [
 function vorTagen(tage: number): string {
   const d = new Date();
   d.setDate(d.getDate() - tage);
-  return d.toISOString().slice(0, 10);
+  // Berlin-Kalendertag — das Backend interpretiert von/bis ebenso
+  return d.toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
 }
 
 /** Pareto-Auswertung (KF3-34): Nacharbeitsgründe / Fehlteile mit 80/20-Linie. */
@@ -74,9 +75,10 @@ export function ParetoBlock() {
   );
 
   const ergebnis = data && Array.isArray(data.positionen) ? data : null;
+  // Achsen-Label aus dem LABEL kürzen — der key ist bei Gründen eine UUID
   const chartDaten = (ergebnis?.positionen ?? []).map((p) => ({
     ...p,
-    kurz: p.key === "ohne" ? "(ohne)" : p.key.length > 12 ? `${p.key.slice(0, 11)}…` : p.key,
+    kurz: p.label.length > 14 ? `${p.label.slice(0, 13)}…` : p.label,
   }));
   const top80 = (ergebnis?.positionen ?? []).filter((p) => p.kumProzent <= 80);
   const ohneGrundDominiert =

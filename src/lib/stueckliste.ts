@@ -196,16 +196,30 @@ export function nettobedarfAusDaten(daten: BomDaten, positionen: AuftragPos[]): 
   return { positionen: liste, mangel: mangelnd.length > 0, mangelnd };
 }
 
-export async function nettobedarfFuerAuftrag(db: Db, auftragId: string): Promise<NettobedarfResult> {
+/**
+ * Zwei Bestandssichten (KF3-33):
+ * - "effektiv" (dispositiv): physisch − fremde ältere Reservierungen — für
+ *   Verfügbarkeitsprüfung, Mangel-Gate und Planungsansichten.
+ * - "physisch": unverändert — für BUCHUNGEN (Entnahmen, Snapshot, Soll-Zeit
+ *   beim Kommissionieren). Der V2-Entnahme-Quirk (ausLager ODER nettobedarf)
+ *   ist für physischen Bestand entworfen; mit effektiver Sicht entstünden
+ *   Über-/Unterbuchungen (Review-Befund Paket 3).
+ */
+export type BestandsSicht = "effektiv" | "physisch";
+
+export async function nettobedarfFuerAuftrag(
+  db: Db,
+  auftragId: string,
+  sicht: BestandsSicht = "effektiv"
+): Promise<NettobedarfResult> {
   const [daten, positionen, reserviert] = await Promise.all([
     ladeBomDaten(db),
     ladeAuftragPositionen(db, auftragId),
-    fremdeAeltereReservierungen(db, auftragId),
+    sicht === "effektiv" ? fremdeAeltereReservierungen(db, auftragId) : Promise.resolve(new Map<string, number>()),
   ]);
-  // KF3-33: auftragsbezogenes Netting rechnet gegen den EFFEKTIVEN Bestand
-  // (physisch − fremde Reservierungen) — andere Aufträge nehmen diesem
-  // keinen bereits beanspruchten Lagerbestand weg.
-  daten.bestand = effektiverBestand(daten.bestand, reserviert);
+  if (sicht === "effektiv") {
+    daten.bestand = effektiverBestand(daten.bestand, reserviert);
+  }
   return nettobedarfAusDaten(daten, positionen);
 }
 
@@ -349,16 +363,17 @@ export function sollSekundenNettoAusDaten(
 export async function sollSekundenNetto(
   db: Db,
   auftragId: string,
-  packzeitMinuten: number = ABPACKZEIT_MINUTEN
+  packzeitMinuten: number = ABPACKZEIT_MINUTEN,
+  sicht: BestandsSicht = "effektiv"
 ): Promise<number | null> {
   const [daten, positionen, reserviert] = await Promise.all([
     ladeBomDaten(db),
     ladeAuftragPositionen(db, auftragId),
-    fremdeAeltereReservierungen(db, auftragId),
+    sicht === "effektiv" ? fremdeAeltereReservierungen(db, auftragId) : Promise.resolve(new Map<string, number>()),
   ]);
-  // Effektiver Bestand (KF3-33): fremd-reserviertes Lager gilt als nicht
-  // verfügbar → Soll-Zeit enthält dann die Eigenfertigung. Bewusste Änderung.
-  daten.bestand = effektiverBestand(daten.bestand, reserviert);
+  if (sicht === "effektiv") {
+    daten.bestand = effektiverBestand(daten.bestand, reserviert);
+  }
   return sollSekundenNettoAusDaten(daten, positionen, packzeitMinuten);
 }
 

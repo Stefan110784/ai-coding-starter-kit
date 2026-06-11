@@ -17,6 +17,14 @@
 - Fehlteil-Signale sind erfasst, nicht gemessen: `stalledMissingParts` ist ein Hand-Flag, `BestellPosition.auftragId` optional → Untererfassung möglich.
 - Snapshot wird bei Re-Kommissionierung ersetzt — Mangel-Quelle zählt den letzten Stand.
 
+## Review-Fixes (2026-06-11, adversarialer Review)
+
+- Param-Härtung: kalendarisch ungültige Daten („2026-02-31“) → 400 statt 500; Zeitraum auf 730 Tage begrenzt.
+- Auch das **Anlegen** von Gründen ist auditiert (POST-Route + systemseitige Anlage des WE-Default-Grunds).
+- Chart-X-Achse kürzt das **Label** statt des Keys (bei Gründen war der Key eine UUID).
+- UI-Default-Zeitraum als Europe/Berlin-Kalendertag (vorher UTC — Drift um Mitternacht).
+- `csvResponse` (global, alle CSV-Exporte): Formel-Injection-Schutz für Texte mit führendem `= + - @`.
+
 ## Akzeptanzkriterien
 
 - [ ] Pareto Nacharbeitsgründe aus Abweichungen + Grund-Katalog, Zeitraum filterbar, CSV-Export

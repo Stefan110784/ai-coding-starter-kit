@@ -166,16 +166,20 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
         // Kommissionierungs-Hook: Bedarf prüfen, Soll-Zeit einfrieren, Entnahmen buchen
         if (neuerStatus === "kommissioniert" && auftrag.status === "offen") {
+          // Gate = dispositive Sicht (schützt ältere Reservierungen, KF3-33);
+          // Buchung/Snapshot/Soll-Zeit = PHYSISCHE Sicht — der Entnahme-Quirk
+          // (ausLager ODER nettobedarf) würde sonst über-/unterbuchen.
           const bedarf = await nettobedarfFuerAuftrag(tx, id);
           materialInfo = bedarf;
+          const bedarfBuchung = await nettobedarfFuerAuftrag(tx, id, "physisch");
           // Soll-Zeit VOR der Entnahme-Buchung einfrieren (Bestand = Vor-Kommissionier-Stand)
-          const soll = await sollSekundenNetto(tx, id);
+          const soll = await sollSekundenNetto(tx, id, undefined, "physisch");
           data.planZeitSekunden = soll != null ? Math.round(soll) : null;
           if (bedarf.mangel && !force) throw new MangelError(bedarf.mangelnd);
           const lagerortId = lagerortParam ?? (await ersterAktiverLagerortId(tx));
-          if (lagerortId) await entnahmenBuchen(tx, id, auth.benutzer.id, lagerortId, bedarf);
+          if (lagerortId) await entnahmenBuchen(tx, id, auth.benutzer.id, lagerortId, bedarfBuchung);
           // Materialstand einfrieren (ISO 7.5, KF3-28)
-          await materialSnapshotSchreiben(tx, id, bedarf);
+          await materialSnapshotSchreiben(tx, id, bedarfBuchung);
           // Reservierung in derselben Transaktion durch die Entnahme ersetzen (KF3-33)
           await reservierungAufloesen(tx, id, "kommissionierung", auth.benutzer.id);
         }
@@ -196,7 +200,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           if (!hatEntnahme) {
             const lagerortId = lagerortParam ?? (await ersterAktiverLagerortId(tx));
             if (lagerortId) {
-              const nachBedarf = await nettobedarfFuerAuftrag(tx, id);
+              // Ungegatete Nachbuchung → physische Sicht (siehe Kommissionier-Hook)
+              const nachBedarf = await nettobedarfFuerAuftrag(tx, id, "physisch");
               await entnahmenBuchen(tx, id, auth.benutzer.id, lagerortId, nachBedarf);
               // Auch bei übersprungener Kommissionierung den Materialstand einfrieren (KF3-28)
               await materialSnapshotSchreiben(tx, id, nachBedarf);

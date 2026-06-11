@@ -21,7 +21,8 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (!lagerort) return err("Lagerort nicht gefunden", 404);
 
   const result = await prisma.$transaction(async (tx) => {
-    const bedarf = await nettobedarfFuerAuftrag(tx, auftragId);
+    // Buchungspfad → physische Sicht (KF3-33: effektiv nur für Planung/Gate)
+    const bedarf = await nettobedarfFuerAuftrag(tx, auftragId, "physisch");
     const gebucht = await entnahmenBuchen(tx, auftragId, auth.benutzer.id, lagerortId, bedarf);
     // Auch der manuelle Entnahmepfad friert den Materialstand ein (ISO 7.5,
     // KF3-28) — sonst bliebe dieser Pfad ohne Snapshot (Review-Befund)

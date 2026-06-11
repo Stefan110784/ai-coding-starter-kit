@@ -3,7 +3,12 @@ import { NextResponse } from "next/server";
 
 function feldWert(wert: unknown): string {
   if (wert === null || wert === undefined) return "";
-  const s = String(wert);
+  let s = String(wert);
+  // Formel-Injection neutralisieren: Texte, die Excel/Calc als Formel deuten
+  // würden, bekommen ein führendes Apostroph (Zahlen bleiben unberührt).
+  if (typeof wert === "string" && /^[=+\-@\t\r]/.test(s)) {
+    s = `'${s}`;
+  }
   // Quoting nur wenn nötig (Python csv QUOTE_MINIMAL)
   if (s.includes(";") || s.includes('"') || s.includes("\n") || s.includes("\r")) {
     return `"${s.replaceAll('"', '""')}"`;

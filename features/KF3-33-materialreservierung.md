@@ -40,6 +40,15 @@
 
 Bestehende offene Aufträge haben anfangs keine Reservierungen — einmaliges Backfill-Skript (`scripts/backfill-reservierungen.ts`: alle offenen Aufträge ohne Entnahmen → `reservierungAktualisieren`); auf der Dev-DB ausgeführt, für Produktion im Deploy-Runbook.
 
+## Review-Fixes (2026-06-11, adversarialer Review)
+
+- **Dispositive vs. physische Sicht getrennt** (hoch): Der V2-Entnahme-Quirk (`ausLager ODER nettobedarf`) ist für physischen Bestand entworfen — mit effektiver Sicht entstanden bei Force-Kommissionierung Über-/Unterbuchungen. Jetzt: Mangel-Gate + Anlage-Warnung + Planungsansichten = **effektiv**; Entnahme-Buchung, Snapshot und Soll-Zeit-Einfrierung = **physisch** (`nettobedarfFuerAuftrag(db, id, "physisch")`).
+- **Beleg-Refresh-Guard** (hoch): `status === "offen"` war ein falscher Proxy — manuelle Entnahme lässt den Status stehen, Reaktivierung setzt ihn zurück; der Refresh re-reservierte bereits entnommenes Material (doppelte Minderung). Jetzt: Re-Reservierung nur, wenn KEINE Entnahmen existieren und der Status offen/laeuft/pausiert ist.
+- Beleg-Import-Transaktion läuft `Serializable` mit einmaligem P2034-Retry (wie POST /api/auftraege — war als „wie oben“ versprochen, fehlte aber).
+- Backfill verarbeitet Aufträge `orderBy erstelltAm asc` (sonst invertiert sich die Prioritätsregel bei Baugruppen-Deckung).
+- Prioritätsregel mit deterministischem Tiebreaker (identisches `erstelltAm` → ID-Vergleich).
+- POST /api/auftraege: alle DB-Fehler laufen durch `handlePrismaError` (zweiter P2034 → 409 statt 500).
+
 ## Akzeptanzkriterien
 
 - [ ] Anlage mit Positionen reserviert Material; zweiter Auftrag sieht reduzierten effektiven Bestand (Fehlteil-Warnung)

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireAuth, err, ok } from "@/lib/api-helpers";
+import { requireAuth, err, ok, handlePrismaError } from "@/lib/api-helpers";
 import { auditEintrag } from "@/lib/audit";
 import { nettobedarfFuerAuftrag, type NettobedarfResult } from "@/lib/stueckliste";
 import { reservierungAktualisieren } from "@/lib/reservierung";
@@ -111,8 +111,12 @@ export async function POST(req: NextRequest) {
     return ok(await anlegen(), 201);
   } catch (e) {
     if ((e as { code?: string })?.code === "P2034") {
-      return ok(await anlegen(), 201);
+      try {
+        return ok(await anlegen(), 201);
+      } catch (e2) {
+        return handlePrismaError(e2);
+      }
     }
-    throw e;
+    return handlePrismaError(e);
   }
 }

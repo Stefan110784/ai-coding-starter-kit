@@ -52,7 +52,12 @@ export async function fremdeAeltereReservierungen(
   const rows = await db.materialReservierung.findMany({
     where: {
       auftragId: { not: auftragId },
-      auftrag: { erstelltAm: { lt: auftrag.erstelltAm } },
+      // Tiebreaker bei identischem erstelltAm: deterministisch über die ID,
+      // sonst würden sich zeitgleiche Aufträge gegenseitig dauerhaft ignorieren
+      OR: [
+        { auftrag: { erstelltAm: { lt: auftrag.erstelltAm } } },
+        { auftrag: { erstelltAm: auftrag.erstelltAm }, auftragId: { lt: auftragId } },
+      ],
     },
     select: { artikelnummer: true, menge: true },
   });
