@@ -48,6 +48,7 @@ import { PrioritaetBadge, PRIORITAET_LABELS } from "@/components/prioritaet-badg
 import { StatusampelPunkt } from "@/components/statusampel-punkt";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { KommissionierDialog } from "@/components/material/kommissionier-dialog";
+import { PruefungDialog } from "@/components/pruefung-dialog";
 import { MaterialbedarfBlock } from "@/components/material/materialbedarf-block";
 import { AuftragDateien } from "@/components/auftrag-dateien";
 import { AuftragVerlauf } from "@/components/auftrag-verlauf";
@@ -151,6 +152,7 @@ export default function AuftraegePage() {
   const [editForm, setEditForm] = useState<Partial<Auftrag>>({});
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [kommissionierAuftrag, setKommissionierAuftrag] = useState<{ id: string; nummer: string } | null>(null);
+  const [pruefAuftrag, setPruefAuftrag] = useState<{ id: string; nummer: string } | null>(null);
   const [form, setForm] = useState({
     nummer: "",
     bezeichnung: "",
@@ -214,7 +216,15 @@ export default function AuftraegePage() {
       body: JSON.stringify({ status }),
     });
     const body = await res.json().catch(() => ({}));
-    if (!res.ok) { toast.error(body.error ?? "Statusänderung fehlgeschlagen"); return; }
+    if (!res.ok) {
+      // Endprüf-Gate (KF3-26): Abschluss ohne Prüfung → Prüfdialog öffnen
+      if (res.status === 409 && body.error === "pruefungFehlt") {
+        setPruefAuftrag({ id, nummer: auftrag?.nummer ?? "" });
+        return;
+      }
+      toast.error(body.error ?? "Statusänderung fehlgeschlagen");
+      return;
+    }
     mutate(url);
     if (selectedId === id) mutate(`/api/auftraege/${id}`);
   }
@@ -720,6 +730,18 @@ export default function AuftraegePage() {
         description="Der Auftrag und alle zugehörigen Positionen, Zeiten und Qualitätsdaten werden dauerhaft entfernt."
         confirmLabel="Löschen"
         onConfirm={confirmDelete}
+      />
+
+      <PruefungDialog
+        auftrag={pruefAuftrag}
+        open={!!pruefAuftrag}
+        onOpenChange={(o) => { if (!o) setPruefAuftrag(null); }}
+        onFreigabe={() => {
+          if (pruefAuftrag) {
+            setStatus(pruefAuftrag.id, "abgeschlossen", { nummer: pruefAuftrag.nummer, status: "laeuft" });
+          }
+          setPruefAuftrag(null);
+        }}
       />
 
       <KommissionierDialog

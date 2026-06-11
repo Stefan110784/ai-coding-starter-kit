@@ -68,6 +68,7 @@ model Benutzer {
   erstellteAuftraege   Auftrag[]
   hochgeladeneDateien  Datei[]
   qualitaetErfasst     Qualitaet[]
+  pruefungen           Pruefung[]
 
   @@map("benutzer")
 }
@@ -212,6 +213,7 @@ model Auftrag {
   zuweisungen         AuftragZuweisung[]
   team                AuftragMitarbeiter[]
   packmasse           AuftragPackmass[]
+  pruefungen          Pruefung[]
 
   @@index([status])
   @@index([nummer])
@@ -371,6 +373,7 @@ model Materialbewegung {
   auftrag      Auftrag?          @relation(fields: [auftragId], references: [id])
   benutzer     Benutzer?         @relation(fields: [benutzerId], references: [id])
   inventur     InventurZaehlung?
+  pruefung     Pruefung?
 
   @@map("materialbewegung")
 }
@@ -435,6 +438,43 @@ model AuditEvent {
   @@index([entitaet, entitaetId])
   @@index([zeitstempel])
   @@map("audit_event")
+}
+
+// ─── V3 NEU: Prüfungen (ISO 9001 Kap. 8.4 / 8.6) ─────────────────────────────
+
+enum PruefTyp {
+  endpruefung
+  wareneingang
+}
+
+enum PruefErgebnis {
+  ok
+  bedingtFrei
+  abweichend
+}
+
+/// Prüfprotokoll: Endprüfung vor Auslieferung (auftragId) und — ab KF3-30 —
+/// Eingangsprüfung je Wareneingangs-Bewegung (bewegungId, Muster InventurZaehlung).
+model Pruefung {
+  id            String        @id @default(uuid())
+  typ           PruefTyp
+  ergebnis      PruefErgebnis
+  auftragId     String?       @map("auftrag_id")
+  bewegungId    String?       @unique @map("bewegung_id")
+  artikelnummer String?
+  menge         Float?
+  bemerkung     String? // Pflicht bei ergebnis ≠ ok (Zod)
+  prueferId     String        @map("pruefer_id")
+  geprueftAm    DateTime      @default(now()) @map("geprueft_am")
+
+  // SetNull statt Cascade: das Prüfprotokoll ist ISO-Aufzeichnung und
+  // überlebt die Löschung des Auftrags.
+  auftrag  Auftrag?          @relation(fields: [auftragId], references: [id], onDelete: SetNull)
+  bewegung Materialbewegung? @relation(fields: [bewegungId], references: [id])
+  pruefer  Benutzer          @relation(fields: [prueferId], references: [id])
+
+  @@index([auftragId])
+  @@map("pruefung")
 }
 
 // ─── V3 NEU: Lieferanten & EOQ ────────────────────────────────────────────────

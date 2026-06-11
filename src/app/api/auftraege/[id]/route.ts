@@ -85,6 +85,9 @@ class MangelError extends Error {
   }
 }
 
+/** Hartes Endprüf-Gate (ISO 8.6, KF3-26): bewusst KEINE force-Umgehung. */
+class PruefungFehltError extends Error {}
+
 async function ersterAktiverLagerortId(tx: Prisma.TransactionClient): Promise<string | null> {
   const erster = await tx.lagerort.findFirst({ where: { aktiv: true }, orderBy: { name: "asc" } });
   return erster?.id ?? null;
@@ -135,6 +138,19 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
       if (neuerStatus !== undefined) {
         const istLager = auftrag.nummer.startsWith("L");
+
+        // Endprüf-Gate (ISO 8.6, KF3-26): Nicht-Lager-Aufträge brauchen vor dem
+        // Abschluss ein Prüfprotokoll mit Freigabe — VOR allen Buchungs-Hooks.
+        if (neuerStatus === "abgeschlossen" && auftrag.status !== "abgeschlossen" && !istLager) {
+          const freigabe = await tx.pruefung.findFirst({
+            where: {
+              auftragId: id,
+              typ: "endpruefung",
+              ergebnis: { in: ["ok", "bedingtFrei"] },
+            },
+          });
+          if (!freigabe) throw new PruefungFehltError();
+        }
 
         // Kommissionierungs-Hook: Bedarf prüfen, Soll-Zeit einfrieren, Entnahmen buchen
         if (neuerStatus === "kommissioniert" && auftrag.status === "offen") {
@@ -218,6 +234,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           error: "Materialmangel",
           mangelnd: e.mangelnd,
           hinweis: "force=true übergeben, um trotzdem zu kommissionieren",
+        },
+        { status: 409 }
+      );
+    }
+    if (e instanceof PruefungFehltError) {
+      return NextResponse.json(
+        {
+          error: "pruefungFehlt",
+          hinweis: "Vor dem Abschluss ist eine Endprüfung mit Freigabe erforderlich (ISO 8.6).",
         },
         { status: 409 }
       );
