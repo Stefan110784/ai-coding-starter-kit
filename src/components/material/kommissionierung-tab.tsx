@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { KommissionierDialog } from "@/components/material/kommissionier-dialog";
+import { ScanButton } from "@/components/scan-input";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -157,6 +158,25 @@ function Positionsliste({
           {abgehaktAnzahl} von {positionen.length} abgehakt
         </span>
         <div className="flex gap-2">
+          <ScanButton
+            size="sm"
+            title="Artikel scannen"
+            onScan={(code) => {
+              const p = positionen.find(
+                (pos) => pos.artikelnummer.toLowerCase() === code.toLowerCase()
+              );
+              if (!p) {
+                toast.error(`Artikel „${code}" steht nicht auf dieser Kommissionierliste`);
+                return;
+              }
+              if (p.abgehakt) {
+                toast.info(`${p.artikelnummer} ist bereits abgehakt`);
+                return;
+              }
+              setCheck(p.artikelnummer, true);
+              toast.success(`${p.artikelnummer} abgehakt`);
+            }}
+          />
           <Button size="sm" variant="outline" onClick={alleZuruecksetzen}>
             <RotateCcw className="size-3 mr-1" /> Zurücksetzen
           </Button>

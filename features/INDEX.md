@@ -37,7 +37,7 @@
 | KF3-19 | **Lieferantenverwaltung** – Stammdaten, Artikel-Lieferant-Zuordnung, Einkaufspreise *(NEU ggü. V2)* | In Progress | – | 2026-06-09 |
 | KF3-20 | **EOQ-Berechnung** – optimale Bestellmenge *(NEU ggü. V2)* | In Progress | – | 2026-06-09 |
 | KF3-21 | **Auftragsplanung / Timeline** – Mitarbeiter-Zuweisung mit Zeitfenstern (geplant_von/bis) *(NEU ggü. V2)* | In Progress | – | 2026-06-09 |
-| KF3-22 | **Scanner-Durchgängigkeit** – iOS-Fix (Rückkamera, Stop+Feedback) + Scan-Input in Zeiten/Kommissionierung | Roadmap | – | 2026-06-11 |
+| KF3-22 | **Scanner-Durchgängigkeit** – iOS-Fix (Rückkamera, Stop+Feedback) + Scan-Input in Zeiten/Kommissionierung | In Progress | [Spec](KF3-22-scanner-durchgaengigkeit.md) | 2026-06-11 |
 | KF3-23 | **Auftragspriorität + Tagesliste** – Prioritätsfeld, Arbeitsvorrat als sortierte Queue | In Progress | [Spec](KF3-23-auftragsprioritaet-tagesliste.md) | 2026-06-11 |
 | KF3-24 | **Statusampel** – abgeleitete Ampel je Auftrag für Vertrieb/GF (Basis für CAS-Rückkanal) | In Progress | [Spec](KF3-24-statusampel.md) | 2026-06-11 |
 | KF3-25 | **Audit-Historie** – generisches AuditEvent (Status, Notiz, Felder) + fehlende Benutzerstempel (ISO 7.5) | Roadmap | – | 2026-06-11 |

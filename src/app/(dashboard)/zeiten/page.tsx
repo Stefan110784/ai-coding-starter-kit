@@ -34,6 +34,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ArbeitsvorratBucket } from "@/components/arbeitsvorrat-bucket";
+import { ScanButton } from "@/components/scan-input";
 import { useMe } from "@/hooks/use-me";
 import { formatDuration, formatDateTime } from "@/lib/utils";
 
@@ -196,20 +197,38 @@ export default function ZeitenPage() {
                 )}
               </SelectContent>
             </Select>
-            <Select value={auftragId} onValueChange={setAuftragId}>
-              <SelectTrigger className="h-11">
-                <SelectValue placeholder="Auftrag wählen…" />
-              </SelectTrigger>
-              <SelectContent>
-                {(Array.isArray(auftraege) ? auftraege : []).map(
-                  (a: { id: string; nummer: string; bezeichnung: string }) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.nummer} – {a.bezeichnung}
-                    </SelectItem>
-                  )
-                )}
-              </SelectContent>
-            </Select>
+            <div className="flex gap-2">
+              <Select value={auftragId} onValueChange={setAuftragId}>
+                <SelectTrigger className="h-11 flex-1">
+                  <SelectValue placeholder="Auftrag wählen…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Array.isArray(auftraege) ? auftraege : []).map(
+                    (a: { id: string; nummer: string; bezeichnung: string }) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.nummer} – {a.bezeichnung}
+                      </SelectItem>
+                    )
+                  )}
+                </SelectContent>
+              </Select>
+              <ScanButton
+                className="h-11 w-11"
+                title="Auftrag scannen"
+                onScan={(code) => {
+                  const liste = Array.isArray(auftraege) ? auftraege : [];
+                  const treffer = liste.find(
+                    (a: { id: string; nummer: string }) => a.nummer.toLowerCase() === code.toLowerCase()
+                  );
+                  if (!treffer) {
+                    toast.error(`Kein laufender Auftrag mit Nummer „${code}"`);
+                    return;
+                  }
+                  setAuftragId(treffer.id);
+                  toast.success(`Auftrag ${treffer.nummer} ausgewählt`);
+                }}
+              />
+            </div>
             <Button onClick={anmelden} className="w-full h-11">
               <LogIn className="size-4 mr-2" />
               Anmelden

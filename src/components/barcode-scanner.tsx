@@ -16,45 +16,69 @@ interface BarcodeScannerProps {
   onResult: (code: string) => void;
 }
 
+/** Nach so vielen ms ohne Videobild gilt die Kamera als stumm (iOS-Fall ohne Exception). */
+const KAMERA_TIMEOUT_MS = 5000;
+
 export function BarcodeScanner({ open, onClose, onResult }: BarcodeScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const readerRef = useRef<{
-    decodeFromVideoDevice: (
-      deviceId: string | undefined,
-      videoElement: HTMLVideoElement,
-      callback: (result: { getText(): string } | null, err: unknown) => void
-    ) => Promise<void>;
-    reset: () => void;
-  } | null>(null);
-  // Fallback-Zustand: wenn die Kamera nicht verfügbar/erlaubt ist, kann der
-  // Code manuell eingegeben werden (vormals wurde der Fehler still verschluckt).
+  // IScannerControls aus @zxing/browser ≥0.2 — stop() beendet Scan-Loop UND Kamera-Stream.
+  // (Das frühere reader.reset() existiert in 0.2 nicht mehr; der Stream lief weiter.)
+  const controlsRef = useRef<{ stop: () => void } | null>(null);
+  // Fallback-Zustand: wenn die Kamera nicht verfügbar/erlaubt ist oder kein Bild
+  // liefert, bleibt die manuelle Eingabe der primäre Weg (Tablet-Fallback, U-2).
   const [kameraFehler, setKameraFehler] = useState<string | null>(null);
+  const [kameraAktiv, setKameraAktiv] = useState(false);
   const [manuell, setManuell] = useState("");
 
   useEffect(() => {
-    if (!open) {
-      readerRef.current?.reset();
-      setKameraFehler(null);
-      setManuell("");
-      return;
-    }
+    if (!open) return;
 
     let active = true;
+    const video = videoRef.current;
+
+    // iOS/iPad-Fall: getUserMedia "läuft", liefert aber nie ein Bild (kein Fehler).
+    const timeout = setTimeout(() => {
+      if (active) {
+        setKameraFehler("Kamera liefert kein Bild. Bitte den Code manuell eingeben.");
+      }
+    }, KAMERA_TIMEOUT_MS);
+    const onPlaying = () => {
+      if (!active) return;
+      clearTimeout(timeout);
+      setKameraAktiv(true);
+    };
+    video?.addEventListener("playing", onPlaying);
 
     import("@zxing/browser").then(({ BrowserMultiFormatReader }) => {
       if (!active || !videoRef.current) return;
-      const reader = new BrowserMultiFormatReader();
-      readerRef.current = reader as unknown as typeof readerRef.current;
 
-      reader
-        .decodeFromVideoDevice(undefined, videoRef.current, (result, err) => {
-          if (result) {
-            onResult(result.getText());
+      new BrowserMultiFormatReader()
+        .decodeFromConstraints(
+          // Rückkamera bevorzugen (weiche Vorgabe): auf iPads wählte die
+          // Default-Kamera sonst die Frontkamera bzw. blieb schwarz (U-2).
+          { video: { facingMode: "environment" } },
+          videoRef.current,
+          (result, err, controls) => {
+            if (result) {
+              // Nach Treffer stoppen: kein Mehrfach-Feuern, Kamera sofort aus.
+              controls.stop();
+              controlsRef.current = null;
+              navigator.vibrate?.(80);
+              onResult(result.getText());
+            }
+            void err; // NotFoundException pro Frame ist Normalbetrieb
           }
-          void err;
+        )
+        .then((controls) => {
+          if (!active) {
+            controls.stop();
+            return;
+          }
+          controlsRef.current = controls;
         })
         .catch((e) => {
           if (!active) return;
+          clearTimeout(timeout);
           const name = (e as { name?: string })?.name;
           setKameraFehler(
             name === "NotAllowedError"
@@ -66,7 +90,13 @@ export function BarcodeScanner({ open, onClose, onResult }: BarcodeScannerProps)
 
     return () => {
       active = false;
-      readerRef.current?.reset();
+      clearTimeout(timeout);
+      video?.removeEventListener("playing", onPlaying);
+      controlsRef.current?.stop();
+      controlsRef.current = null;
+      setKameraFehler(null);
+      setKameraAktiv(false);
+      setManuell("");
     };
   }, [open, onResult]);
 
@@ -107,7 +137,7 @@ export function BarcodeScanner({ open, onClose, onResult }: BarcodeScannerProps)
               </div>
             </div>
             <p className="text-sm text-center text-muted-foreground">
-              Kamera auf Barcode oder QR-Code richten
+              {kameraAktiv ? "Kamera auf Barcode oder QR-Code richten" : "Kamera startet…"}
             </p>
           </>
         )}
