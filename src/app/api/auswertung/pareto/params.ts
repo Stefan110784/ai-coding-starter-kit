@@ -15,7 +15,7 @@ export const paretoQuerySchema = z
     von: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "von: Datum als JJJJ-MM-TT").refine(istKalendertag, "von: ungültiges Datum"),
     bis: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "bis: Datum als JJJJ-MM-TT").refine(istKalendertag, "bis: ungültiges Datum"),
     abwTyp: z
-      .enum(["nacharbeit", "ausschuss", "reklamationKunde", "reklamationLieferant", "alle"])
+      .enum(["nacharbeit", "ausschuss", "reklamationKunde", "reklamationLieferant", "fuenfs", "alle"])
       .default("nacharbeit"),
     quelle: z.enum(["bestellbezug", "mangel"]).default("bestellbezug"),
     limit: z.coerce.number().int().min(5).max(50).default(20),
