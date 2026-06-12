@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireRecht, err, ok, handlePrismaError } from "@/lib/api-helpers";
+import { requireAuth, err, ok, handlePrismaError } from "@/lib/api-helpers";
+import { hatRecht } from "@/lib/rechte";
 import { auditFeldDiff } from "@/lib/audit";
 
 /**
@@ -22,12 +23,19 @@ const updateSchema = z.object({
 type Params = { params: Promise<{ id: string }> };
 
 export async function PATCH(req: NextRequest, { params }: Params) {
-  // Fortschreiben/Abschließen ist QM-Arbeit → Funktionsrecht qualitaet
-  // (Melden via POST bleibt für alle Angemeldeten offen).
-  const auth = await requireRecht(req, "qualitaet");
+  // Fortschreiben/Abschließen ist QM-Arbeit → Funktionsrecht qualitaet;
+  // 5S-Maßnahmen (typ fuenfs, KF3-36) dürfen auch Auditoren fortschreiben.
+  const auth = await requireAuth(req);
   if ("status" in auth) return auth;
 
   const { id } = await params;
+  const vorhanden = await prisma.abweichung.findUnique({ where: { id }, select: { typ: true } });
+  if (!vorhanden) return err("Abweichung nicht gefunden", 404);
+  const erlaubt =
+    hatRecht(auth.benutzer, "qualitaet") ||
+    (vorhanden.typ === "fuenfs" && hatRecht(auth.benutzer, "fuenfs.audit"));
+  if (!erlaubt) return err("Keine Berechtigung", 403);
+
   const body = await req.json().catch(() => null);
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) return err("Ungültige Eingabe");

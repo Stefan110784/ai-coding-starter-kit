@@ -3,20 +3,28 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, err, ok, handlePrismaError } from "@/lib/api-helpers";
 import { auditEintrag, auditFeldDiff } from "@/lib/audit";
+import { hatRecht } from "@/lib/rechte";
+import { ABWEICHUNG_TYPEN } from "@/lib/abweichung-typen";
 
 /** Abweichungen / Minimal-CAPA (ISO 8.7, 10.2; KF3-27). */
 
-const createSchema = z.object({
-  typ: z.enum(["nacharbeit", "ausschuss", "reklamationKunde", "reklamationLieferant"]),
-  auftragId: z.string().uuid().optional(),
-  artikelnummer: z.string().optional(),
-  beschreibung: z.string().trim().min(1, "Beschreibung erforderlich"),
-  ursache: z.string().trim().optional(),
-  massnahme: z.string().trim().optional(),
-  grundId: z.string().uuid().optional(),
-  verantwortlichId: z.string().uuid().optional(),
-  faelligAm: z.string().datetime().optional(),
-});
+const createSchema = z
+  .object({
+    typ: z.enum(ABWEICHUNG_TYPEN),
+    auftragId: z.string().uuid().optional(),
+    artikelnummer: z.string().optional(),
+    beschreibung: z.string().trim().min(1, "Beschreibung erforderlich"),
+    ursache: z.string().trim().optional(),
+    massnahme: z.string().trim().optional(),
+    grundId: z.string().uuid().optional(),
+    verantwortlichId: z.string().uuid().optional(),
+    faelligAm: z.string().datetime().optional(),
+  })
+  // 5S-Maßnahmen sind auftragslos — eine auftragId würde die Statusampel
+  // des Auftrags gelb färben (KF3-36-Design-Entscheidung)
+  .refine((d) => d.typ !== "fuenfs" || !d.auftragId, {
+    message: "5S-Maßnahmen sind nicht auftragsbezogen",
+  });
 
 export async function GET(req: NextRequest) {
   const auth = await requireAuth(req);
@@ -29,9 +37,10 @@ export async function GET(req: NextRequest) {
 
   // Enum-Parameter validieren — sonst wirft Prisma einen unbehandelten 500
   const STATUS_WERTE = ["offen", "inBearbeitung", "abgeschlossen"];
-  const TYP_WERTE = ["nacharbeit", "ausschuss", "reklamationKunde", "reklamationLieferant"];
   if (status && !STATUS_WERTE.includes(status)) return err("Ungültiger status-Filter");
-  if (typ && !TYP_WERTE.includes(typ)) return err("Ungültiger typ-Filter");
+  if (typ && !(ABWEICHUNG_TYPEN as readonly string[]).includes(typ)) {
+    return err("Ungültiger typ-Filter");
+  }
 
   const abweichungen = await prisma.abweichung.findMany({
     where: {
@@ -59,6 +68,12 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) return err(parsed.error.issues[0]?.message ?? "Ungültige Eingabe");
+
+  // 5S-Maßnahmen sind Auditoren-Arbeit (KF3-36) — Melden der übrigen Typen
+  // bleibt für alle Angemeldeten offen
+  if (parsed.data.typ === "fuenfs" && !hatRecht(auth.benutzer, "fuenfs.audit")) {
+    return err("5S-Maßnahmen erfordern das Recht fuenfs.audit", 403);
+  }
 
   const { faelligAm, ...data } = parsed.data;
 

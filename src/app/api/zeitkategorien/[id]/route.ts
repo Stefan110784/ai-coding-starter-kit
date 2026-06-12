@@ -6,6 +6,8 @@ import { requireRecht, err, ok, handlePrismaError } from "@/lib/api-helpers";
 const patchSchema = z.object({
   name: z.string().min(1).optional(),
   sortorder: z.number().int().optional(),
+  // KF3-35: false = Gemeinkostenzeit, zählt nicht in den Zeiterfassungsgrad
+  auftragsbezogen: z.boolean().optional(),
 });
 
 type Params = { params: Promise<{ id: string }> };

@@ -55,6 +55,7 @@ interface Mitarbeiter {
   kuerzel: string;
   name: string;
   status: string;
+  wochenstunden?: number | null;
   benutzer?: { username: string; rolle: string } | null;
 }
 interface Lagerort {
@@ -67,6 +68,7 @@ interface Zeitkategorie {
   id: string;
   name: string;
   sortorder: number;
+  auftragsbezogen?: boolean;
 }
 interface BenutzerEintrag {
   id: string;
@@ -116,7 +118,7 @@ export default function VerwaltungPage() {
 
   // ── Zeitkategorien ──
   const [katDialog, setKatDialog] = useState<Zeitkategorie | "new" | null>(null);
-  const [katForm, setKatForm] = useState({ name: "", sortorder: "0" });
+  const [katForm, setKatForm] = useState({ name: "", sortorder: "0", auftragsbezogen: true });
   const [katDelete, setKatDelete] = useState<Zeitkategorie | null>(null);
 
   // ── Benutzer ──
@@ -150,6 +152,7 @@ export default function VerwaltungPage() {
       name: maEdit.name,
       kuerzel: maEdit.kuerzel,
       status: maEdit.status,
+      wochenstunden: maEdit.wochenstunden ?? null,
     });
     if (!ok) return toast.error(data.error ?? "Fehler");
     toast.success("Mitarbeiter gespeichert");
@@ -222,11 +225,11 @@ export default function VerwaltungPage() {
   // ── Zeitkategorie-Handler ──
   function openKat(k: Zeitkategorie | "new") {
     setKatDialog(k);
-    setKatForm(k === "new" ? { name: "", sortorder: "0" } : { name: k.name, sortorder: k.sortorder.toString() });
+    setKatForm(k === "new" ? { name: "", sortorder: "0", auftragsbezogen: true } : { name: k.name, sortorder: k.sortorder.toString(), auftragsbezogen: k.auftragsbezogen ?? true });
   }
   async function saveKat(e: React.FormEvent) {
     e.preventDefault();
-    const payload = { name: katForm.name, sortorder: parseInt(katForm.sortorder) || 0 };
+    const payload = { name: katForm.name, sortorder: parseInt(katForm.sortorder) || 0, auftragsbezogen: katForm.auftragsbezogen };
     const isNew = katDialog === "new";
     const { ok, data } = isNew
       ? await send("/api/zeitkategorien", "POST", payload)
@@ -603,6 +606,18 @@ export default function VerwaltungPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-1.5">
+                <Label>Wochenstunden (Soll)</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="60"
+                  step="0.5"
+                  value={maEdit.wochenstunden ?? ""}
+                  onChange={(e) => setMaEdit({ ...maEdit, wochenstunden: e.target.value ? parseFloat(e.target.value) : null })}
+                  placeholder="z. B. 40 — Basis für den Soll-Vorschlag (KF3-35)"
+                />
+              </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setMaEdit(null)}>Abbrechen</Button>
                 <Button type="submit">Speichern</Button>
@@ -714,6 +729,16 @@ export default function VerwaltungPage() {
             <div className="space-y-1.5">
               <Label>Sortierung</Label>
               <Input type="number" value={katForm.sortorder} onChange={(e) => setKatForm({ ...katForm, sortorder: e.target.value })} />
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="kat-auftragsbezogen"
+                checked={katForm.auftragsbezogen}
+                onCheckedChange={(c) => setKatForm({ ...katForm, auftragsbezogen: !!c })}
+              />
+              <Label htmlFor="kat-auftragsbezogen">
+                Zählt als Auftragszeit (Zeiterfassungsgrad, KF3-35)
+              </Label>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setKatDialog(null)}>Abbrechen</Button>

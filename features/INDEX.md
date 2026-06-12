@@ -50,8 +50,8 @@
 | KF3-32 | **Lieferantenbewertung** – Termintreue + Qualität, rein abgeleitet (ISO 8.4) | In Progress | [Spec](KF3-32-lieferantenbewertung.md) | 2026-06-11 |
 | KF3-33 | **Materialreservierung** – Reservierung je Auftrag + Verfügbarkeitsprüfung beim Anlegen | In Progress | [Spec](KF3-33-materialreservierung.md) | 2026-06-11 |
 | KF3-34 | **Pareto-Auswertungen** – Fehlteile + Nacharbeitsgründe (Grund-Katalog aus KF3-27) | In Progress | [Spec](KF3-34-pareto.md) | 2026-06-11 |
-| KF3-35 | **Zeiterfassungsgrad-KPI** – Soll-Anwesenheit + Abwesenheiten, nur Team/Monat (Zielkorridor 70–85 %) | Roadmap | – | 2026-06-11 |
-| KF3-36 | **5S-Modul** – Monats-Audit mit Checkliste/Foto, Maßnahmen (CAPA), Trend | Roadmap | – | 2026-06-11 |
+| KF3-35 | **Zeiterfassungsgrad-KPI** – Team-Monats-Soll, nur Team/Monat (Zielkorridor 70–85 %) | In Progress | [Spec](KF3-35-zeiterfassungsgrad.md) | 2026-06-11 |
+| KF3-36 | **5S-Modul** – Monats-Audit mit Checkliste/Foto, Maßnahmen (CAPA), Trend | In Progress | [Spec](KF3-36-fuenfs.md) | 2026-06-11 |
 | KF3-37 | **Kundenauftrag-Modell** – Kunde + Kundenauftrag, Ende-zu-Ende-Liefertreue | In Progress | [Spec](KF3-37-kundenauftrag.md) | 2026-06-11 |
 | KF3-38 | **CAS-Sync Phase 1 (lesend)** – Staging, GUID-Mapping, Soft-Delete, Sync-Job (extern: API-Klärung) | Roadmap | – | 2026-06-11 |
 | KF3-39 | **CAS-Rückkanal** – Status + bestätigter Termin zurück in die CAS-Kundenakte | Roadmap | – | 2026-06-11 |

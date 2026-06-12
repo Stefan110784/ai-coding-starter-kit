@@ -6,6 +6,8 @@ import { requireAuth, requireRecht, err, ok, handlePrismaError } from "@/lib/api
 const createSchema = z.object({
   name: z.string().min(1),
   sortorder: z.number().int().optional(),
+  // KF3-35: false = Gemeinkostenzeit, zählt nicht in den Zeiterfassungsgrad
+  auftragsbezogen: z.boolean().optional(),
 });
 
 export async function GET(req: NextRequest) {
